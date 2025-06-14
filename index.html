@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React + TS</title>
+  </head>
+  <body>
+    <div id="soof-extension-bundle-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <soof-chat
+      local-language="{{ localization.language.iso_code }}"
+    ></soof-chat>
+
+    <script type="module" defer>
+      class ChatBot extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" });
+          this.isOpen = false;
+          this.bundleLoaded = false;
+          this.reactMount = null;
+          this.button = null;
+          this.window = null;
+          this.handleButtonClick = this.handleButtonClick.bind(this);
+          this.handleCloseClick = this.handleCloseClick.bind(this);
+          this.renderBase();
+        }
+
+        loadBundle() {
+          if (this.bundleLoaded) return Promise.resolve();
+          this.bundleLoaded = true;
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = `{{ 'soof-extension.js' | asset_url }}`;
+            script.type = "module";
+            script.defer = true;
+            script.onload = () => resolve();
+            script.onerror = (err) => reject(err);
+            document.head.appendChild(script);
+          });
+        }
+
+        handleButtonClick() {
+          if (!this.isOpen) {
+            this.openChatWindow();
+          }
+        }
+
+        handleCloseClick() {
+          this.closeChatWindow();
+        }
+
+        async openChatWindow() {
+          if (!this.isOpen) {
+            await this.loadBundle();
+            this.isOpen = true;
+            this.renderBase();
+
+            // Now that renderBase has placed <div id="soof-chat-react-root">
+            if (window.__soofMount) {
+              window.__soofMount(this.shadowRoot);
+            }
+          }
+        }
+
+        closeChatWindow() {
+          if (this.isOpen) {
+            this.isOpen = false;
+            this.renderBase();
+          }
+        }
+
+        renderBase() {
+          // Clear shadow DOM
+          this.shadowRoot.innerHTML = "";
+          // Styles for button and window
+          const style = document.createElement("style");
+          style.textContent = `
+      .soof-chat-btn {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 999999;
+        background: #fff;
+        border-radius: 50%;
+        width: 64px;
+        height: 64px;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        transition: box-shadow 0.2s;
+      }
+      .soof-chat-btn:hover {
+        box-shadow: 0 4px 24px rgba(0,0,0,0.22);
+      }
+      .soof-chat-window {
+        position: fixed;
+        bottom: 112px;
+        right: 32px;
+        width: 380px;
+        max-width: 95vw;
+        height: 600px;
+        max-height: 80vh;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 4px 32px rgba(0,0,0,0.22);
+        z-index: 9999999;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: soof-fade-in 0.2s;
+      }
+      .soof-chat-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        z-index: 2;
+      }
+      #soof-chat-react-root {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+      }
+      @keyframes soof-fade-in {
+        from { opacity: 0; transform: translateY(40px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @media (max-width: 600px) {
+        .soof-chat-window {
+          width: 100vw;
+          height: 100vh;
+          bottom: 0;
+          right: 0;
+          border-radius: 0;
+        }
+        .soof-chat-btn {
+          right: 16px;
+          bottom: 16px;
+        }
+      }
+    `;
+          this.shadowRoot.appendChild(style);
+
+          // Chat button
+          if (!this.isOpen) {
+            this.button = document.createElement("button");
+            this.button.className = "soof-chat-btn";
+            this.button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32"><path d="M2 15V5c0-1.1.9-2 2-2h16a2 2 0 0 1 2 2v15a1 1 0 0 1-1.7.7L16.58 17H4a2 2 0 0 1-2-2z"/><path d="M6 7h12a1 1 0 0 1 0 2H6a1 1 0 1 1 0-2zm0 4h8a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2z"/></svg>`;
+            this.button.addEventListener("click", this.handleButtonClick);
+            this.shadowRoot.appendChild(this.button);
+          } else {
+            // Chat window
+            this.window = document.createElement("div");
+            this.window.className = "soof-chat-window";
+            // Close button
+            const closeBtn = document.createElement("button");
+            closeBtn.className = "soof-chat-close";
+            closeBtn.innerHTML = "&times;";
+            closeBtn.addEventListener("click", this.handleCloseClick);
+            this.window.appendChild(closeBtn);
+            // React mount point
+            this.reactMount = document.createElement("div");
+            this.reactMount.id = "soof-chat-react-root";
+            this.window.appendChild(this.reactMount);
+            this.shadowRoot.appendChild(this.window);
+          }
+        }
+
+        // Expose a mount point for React (main.tsx expects shadowRoot and a div inside)
+        connectedCallback() {
+          // No-op, handled in constructor
+        }
+      }
+
+      if (!customElements.get("soof-chat")) {
+        customElements.define("soof-chat", ChatBot);
+      }
+    </script>
+  </body>
+</html>
