@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
+import type { Message as LangGraphMessage } from "@langchain/langgraph-sdk";
 
 import Header from "./components/Header";
-// import Messages from "./components/Messages";
-// import Input from "./components/Input";
+import Messages from "./components/Messages";
+import Input from "./components/Input";
 import { useChatSession } from "./hooks/useChatSession";
-import { useCache } from "./hooks/useCache";
-// import StreamingChat from "./components/StreamingChat";
+import StreamingChat from "./components/StreamingChat";
 import "./App.css";
+import { useCache } from "./hooks/useCache";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
@@ -61,15 +62,10 @@ export default function App() {
   const { chatSession, setChatSession } = useChatSession();
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(chatSession.threadId ?? null);
-  // const [messages, setMessages] = useState<Message[]>([]);
-  // const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
+  const [messages, setMessages] = useState<LangGraphMessage[]>([]);
+  const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
 
-  const { cache, setCache, isLoaded: cacheLoaded } = useCache();
-
-  // stable callback to append streamed deltas
-  // const pushMessages = useCallback((msgs: Message[]) => {
-  //   setMessages((prev) => [...prev, ...msgs]);
-  // }, []);
+  const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
 
   // Sync threadId when chatSession loaded from localStorage
   useEffect(() => {
@@ -78,30 +74,33 @@ export default function App() {
     }
   }, [chatSession.threadId]);
 
-  /* --------------------------- 2. Load or fetch serveData ----------------- */
+  /* --------------------------- 2. Fetch serveData ------------------------- */
   useEffect(() => {
-    if (!cacheLoaded) return;
-
+    if (!isCacheLoaded) return;
+    // If cache exists and has chatbot and shop, use it
     if (cache.data.chatbot && cache.data.shop) {
-      setServeData(cache.data as unknown as ServeData);
+      setServeData({
+        chatbot: cache.data.chatbot,
+        shop: cache.data.shop,
+      });
       setIsServeLoading(false);
       return;
     }
-
+    // Otherwise, fetch and cache
     (async () => {
       try {
         const res = await fetch(`/apps/${SOOF_PROXY_URI}/chatbot/serve`);
         if (!res.ok) throw new Error("Failed to fetch serve data");
         const data: ServeData = await res.json();
         setServeData(data);
-        setCache(data as any);
+        setCache({ chatbot: data.chatbot, shop: data.shop });
       } catch (err) {
         console.error(err);
       } finally {
         setIsServeLoading(false);
       }
     })();
-  }, [cacheLoaded]);
+  }, [isCacheLoaded]);
 
   /* --------------------------- 3. Fetch chat token ------------------------ */
   useEffect(() => {
@@ -146,21 +145,24 @@ export default function App() {
     chatSession.assistantId &&
     chatSession.sessionToken;
 
-    console.log("hasValidSession", hasValidSession);
+  const canStream = hasValidSession && threadId !== null;
 
-  // const canStream = hasValidSession && threadId !== null;
-
-  // const mappedMessages = messages;
+  const mappedMessages: Message[] = messages.map((m) => ({
+    role: m.type === "human" ? "user" : "assistant",
+    type: "normal",
+    content: m.content as string,
+  }));
 
   /* ------------------------------ 5. Handlers ----------------------------- */
-  // const handleSend = (text: string) => {
-  //   if (!hasValidSession || isSessionLoading || sendFn === undefined || sendFn.toString() === (()=>{}).toString()) return;
-  //   sendFn(text);
-  // };
+  const handleSend = (text: string) => {
+    if (!hasValidSession || isSessionLoading || sendFn === undefined || sendFn.toString() === (()=>{}).toString()) return;
+    sendFn(text);
+  };
 
   /* ------------------------------- 6. Render ------------------------------ */
 
   if (isServeLoading || !serveData) {
+    console.log(isServeLoading, serveData)
     return (
       <div className="chat-loading">
         <div className="loader">Loading configuration…</div>
@@ -170,28 +172,28 @@ export default function App() {
 
   return (
     <div className="chatbot">
-      <Header
+      <Header 
         shopName={serveData.shop.name}
         chatbotName={serveData.chatbot.customName}
         theme={PLACEHOLDER_THEME}
         onRestartChat={() => window.location.reload()}
       />
 
-      {/* <Messages messages={mappedMessages} /> */}
+      <Messages messages={mappedMessages} />
 
       <div style={{ padding: "8px" }}>
         {/* thread loading indicator will be inside StreamingChat triggering messages; not exposed here */}
         {/* Connecting indicator while fetching session */}
         {isSessionLoading && <span>Connecting…</span>}
 
-        {/* <Input
+      <Input 
           onSend={handleSend}
           disabled={!canStream || isSessionLoading || sendFn === undefined || sendFn.toString() === (()=>{}).toString()}
           theme={PLACEHOLDER_THEME}
           isMobile={false}
-        /> */}
+        />
 
-        {/* {canStream && (
+        {canStream && (
           <StreamingChat
             apiUrl={chatSession.langGraphUrl!}
             assistantId={chatSession.assistantId!}
@@ -199,10 +201,10 @@ export default function App() {
             myShopifyDomain={serveData.shop.myShopifyDomain}
             threadId={threadId}
             setThreadId={setThreadId}
-            onMessages={pushMessages}
+            onMessages={(msgs) => setMessages(msgs)}
             onSendFn={(fn) => setSendFn(() => fn)}
           />
-        )} */}
+        )}
       </div>
     </div>
   );
