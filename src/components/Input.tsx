@@ -41,7 +41,7 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
           onChange={handleInputChange}
           value={text}
           disabled={disabled}
-          placeholder="Ask me anything..."
+          placeholder="Waar ben je naar op zoek?"
           style={{
             color: theme.primaryText,
             backgroundColor: theme.background,

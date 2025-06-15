@@ -11,6 +11,7 @@ interface StreamingChatProps {
   setThreadId: (id: string | null) => void;
   onMessages: (msgs: LangGraphMessage[]) => void;
   onSendFn: (fn: (text: string) => void) => void;
+  initialMessages?: LangGraphMessage[];
 }
 
 export default function StreamingChat({
@@ -21,6 +22,7 @@ export default function StreamingChat({
   threadId,
   onMessages,
   onSendFn,
+  initialMessages = [],
 }: StreamingChatProps) {
   /* -------------------------------------------------------------------- */
   /*                           Local state/refs                           */
@@ -28,6 +30,13 @@ export default function StreamingChat({
 
   const clientRef = useRef<Client | null>(null);
   const messagesRef = useRef<LangGraphMessage[]>([]);
+
+  // Initialise messagesRef once with any pre-fetched transcript coming from parent
+  useEffect(() => {
+    if (messagesRef.current.length === 0 && initialMessages.length > 0) {
+      messagesRef.current = [...initialMessages];
+    }
+  }, [initialMessages]);
 
   // create client instance once
   useEffect(() => {

@@ -7,7 +7,6 @@ import Messages from "./components/Messages";
 import Input from "./components/Input";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
-import "./App.css";
 import { useCache } from "./hooks/useCache";
 
 /* -------------------------------------------------------------------------- */
@@ -18,6 +17,7 @@ interface ServeData {
   chatbot: {
     name: string;
     customName: string;
+    theme: any;
   };
   shop: {
     name: string;
@@ -40,17 +40,6 @@ export interface Message {
 
 const SOOF_PROXY_URI = "soof-proxy--dev";
 const LOCAL_LANGUAGE = "en";
-const PLACEHOLDER_THEME = {
-  primaryBackground: "#000000",
-  secondaryBackground: "#ffffff",
-  background: "#ffffff",
-  primaryAccent: "#000000",
-  tertiaryAccent: "#000000",
-  secondaryText: "#ffffff",
-  primaryText: "#000000",
-  secondaryBorder: "#cccccc",
-  disabledBackground: "#eeeeee",
-};
 
 /* -------------------------------------------------------------------------- */
 /*                               Main Component                               */
@@ -294,7 +283,7 @@ export default function App() {
       <Header
         shopName={serveData.shop.name}
         chatbotName={serveData.chatbot.customName}
-        theme={PLACEHOLDER_THEME}
+        theme={serveData.chatbot.theme}
         onRestartChat={() => window.location.reload()}
       />
 
@@ -313,7 +302,7 @@ export default function App() {
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
           }
-          theme={PLACEHOLDER_THEME}
+          theme={serveData.chatbot.theme}
           isMobile={false}
         />
 
@@ -327,6 +316,7 @@ export default function App() {
             setThreadId={setThreadId}
             onMessages={handleMessages}
             onSendFn={handleRegisterSendFn}
+            initialMessages={messages}
           />
         )}
       </div>
