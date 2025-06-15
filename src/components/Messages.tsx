@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
+import ProductCard from "./tools/ProductCard";
+import type { ProductMeta } from "./tools/ProductCard";
 
 interface Option {
   label: string;
@@ -13,7 +15,7 @@ interface Option {
 
 interface Message {
   role: 'user' | 'assistant' | 'assistant-loading' | 'assistant-error';
-  type: 'normal' | 'orderTracking';
+  type: 'normal' | 'orderTracking' | 'product';
   content?: string;
   loading?: boolean;
   order?: {
@@ -21,6 +23,7 @@ interface Message {
     financialStatus: string;
     orderStatusUrl: string;
   };
+  productMeta?: ProductMeta;
   options?: Option[];
   onOptionClick?: (value: string) => void;
 }
@@ -38,7 +41,7 @@ export default function Messages({ messages }: MessagesProps) {
 
   const renderMessage = (message: Message, index: number) => {
     if (message.type === 'orderTracking' && message.order) {
-  return (
+      return (
         <div key={index}>
           <div className="message-wrapper assistant">
             <div className="message">
@@ -67,22 +70,32 @@ export default function Messages({ messages }: MessagesProps) {
                 ))}
               </div>
             )}
-                </div>
-              </div>
-            );
+          </div>
+        </div>
+      );
+    }
+
+    if (message.type === 'product' && message.productMeta) {
+      return (
+        <div key={index} className="message-container-bot">
+          <div className="bot-message-wrapper">
+            <ProductCard product={message.productMeta} />
+          </div>
+        </div>
+      );
     }
 
     // Normal messages
     if (message.role === 'user') {
       return <UserMessage key={index} text={message.content || ''} />;
     } else if (message.role === 'assistant' || message.role === 'assistant-error') {
-            return (
-              <BotMessage
-                key={index}
+      return (
+        <BotMessage
+          key={index}
           text={message.content || ''}
-                loading={message.loading}
-                options={message.options}
-                onOptionClick={message.onOptionClick}
+          loading={message.loading}
+          options={message.options}
+          onOptionClick={message.onOptionClick}
           isError={message.role === 'assistant-error'}
         />
       );
@@ -93,11 +106,11 @@ export default function Messages({ messages }: MessagesProps) {
           text=""
           loading={true}
           options={[]}
-              />
-            );
-          }
+        />
+      );
+    }
 
-        return null;
+    return null;
   };
 
   return (
