@@ -47,7 +47,12 @@ export default function StreamingChat({
       if (!text.trim() || !clientRef.current) return;
 
       // 1. Immediately add the user's message locally so UI updates right away
+      const generatedId = `local-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}`;
+
       const localUserMsg = {
+        id: generatedId,
         type: "human",
         content: text,
       } as unknown as LangGraphMessage;
@@ -70,6 +75,7 @@ export default function StreamingChat({
             input: {
               messages: [
                 {
+                  id: generatedId,
                   type: "human",
                   content: text,
                 },

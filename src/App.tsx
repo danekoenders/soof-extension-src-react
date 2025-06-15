@@ -27,6 +27,7 @@ interface ServeData {
 
 // Minimal message type for Messages component
 export interface Message {
+  id?: string;
   role: "user" | "assistant";
   type: "normal" | "product";
   content?: string;
@@ -162,15 +163,23 @@ export default function App() {
   const canStream = hasValidSession && threadId !== null;
 
   const mappedMessages: Message[] = messages.flatMap((m) => {
+    const id = (m as any).id as string | undefined;
     // human/user
     if (m.type === "human") {
-      return [{ role: "user", type: "normal", content: m.content as string }];
+      return [
+        { id, role: "user", type: "normal", content: m.content as string },
+      ];
     }
 
     // AI normal assistant message
     if (m.type === "ai") {
       return [
-        { role: "assistant", type: "normal", content: m.content as string },
+        {
+          id,
+          role: "assistant",
+          type: "normal",
+          content: m.content as string,
+        },
       ];
     }
 
@@ -182,6 +191,7 @@ export default function App() {
         if (parsed?.metadata?.title) {
           return [
             {
+              id,
               role: "assistant",
               type: "product",
               productMeta: parsed.metadata as any,
@@ -194,6 +204,7 @@ export default function App() {
       // fallback
       return [
         {
+          id,
           role: "assistant",
           type: "normal",
           content:

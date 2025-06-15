@@ -14,6 +14,7 @@ interface Option {
 }
 
 interface Message {
+  id?: string;
   role: 'user' | 'assistant' | 'assistant-loading' | 'assistant-error';
   type: 'normal' | 'orderTracking' | 'product';
   content?: string;
@@ -42,7 +43,7 @@ export default function Messages({ messages }: MessagesProps) {
   const renderMessage = (message: Message, index: number) => {
     if (message.type === 'orderTracking' && message.order) {
       return (
-        <div key={index}>
+        <div key={message.id ?? index}>
           <div className="message-wrapper assistant">
             <div className="message">
               <p>I found your order details:</p>
@@ -77,7 +78,7 @@ export default function Messages({ messages }: MessagesProps) {
 
     if (message.type === 'product' && message.productMeta) {
       return (
-        <div key={index} className="message-container-bot">
+        <div key={message.id ?? index} className="message-container-bot">
           <div className="bot-message-wrapper">
             <ProductCard product={message.productMeta} />
           </div>
@@ -87,11 +88,11 @@ export default function Messages({ messages }: MessagesProps) {
 
     // Normal messages
     if (message.role === 'user') {
-      return <UserMessage key={index} text={message.content || ''} />;
+      return <UserMessage key={message.id ?? index} text={message.content || ''} />;
     } else if (message.role === 'assistant' || message.role === 'assistant-error') {
       return (
         <BotMessage
-          key={index}
+          key={message.id ?? index}
           text={message.content || ''}
           loading={message.loading}
           options={message.options}
@@ -102,7 +103,7 @@ export default function Messages({ messages }: MessagesProps) {
     } else if (message.role === 'assistant-loading') {
       return (
         <BotMessage
-          key={index}
+          key={message.id ?? index}
           text=""
           loading={true}
           options={[]}
