@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Client as LangGraphClient } from "@langchain/langgraph-sdk";
 import type { Message as LangGraphMessage } from "@langchain/langgraph-sdk";
 
@@ -151,61 +151,85 @@ export default function App() {
 
   const canStream = hasValidSession && threadId !== null;
 
-  const mappedMessages: Message[] = messages.flatMap((m) => {
-    const id = (m as any).id as string | undefined;
-    // human/user
-    if (m.type === "human") {
-      return [
-        { id, role: "user", type: "normal", content: m.content as string },
-      ];
-    }
+  const mappedMessages: Message[] = useMemo(() => {
+    const processed: LangGraphMessage[] = [];
+    let pendingProductMeta: any = null;
 
-    // AI normal assistant message
-    if (m.type === "ai") {
-      return [
-        {
-          id,
-          role: "assistant",
-          type: "normal",
-          content: m.content as string,
-        },
-      ];
-    }
-
-    // tool call final message with content json
-    if (m.type === "tool" && m.content) {
-      try {
-        const parsed = JSON.parse(m.content as string);
-        // check if metadata contains product info
-        if (parsed?.metadata?.title) {
-          return [
-            {
-              id,
-              role: "assistant",
-              type: "product",
-              productMeta: parsed.metadata as any,
-            } as any,
-          ];
+    for (const msg of messages) {
+      if (msg.type === "tool" && typeof msg.content === "string") {
+        try {
+          const parsed = JSON.parse(msg.content);
+          if (parsed?.metadata?.title) {
+            pendingProductMeta = parsed.metadata;
+            continue; // skip tool message itself
+          }
+        } catch (e) {
+          /* ignore parse errors */
         }
-      } catch (_) {
-        // ignore parse error
       }
-      // fallback
-      return [
-        {
-          id,
-          role: "assistant",
-          type: "normal",
-          content:
-            typeof m.content === "string"
-              ? m.content
-              : JSON.stringify(m.content),
-        },
-      ];
+
+      if (msg.type === "ai") {
+        if (pendingProductMeta) {
+          (msg as any)._productMeta = pendingProductMeta;
+          pendingProductMeta = null;
+        }
+      }
+
+      processed.push(msg);
     }
 
-    return [];
-  });
+    // Fallback: if product meta at end with no AI message, create lone AI entry
+    if (pendingProductMeta) {
+      processed.push({
+        type: "ai",
+        content: "",
+        _productMeta: pendingProductMeta,
+      } as any);
+    }
+
+    return processed.flatMap((m): Message[] => {
+      const id = (m as any).id as string | undefined;
+
+      if (m.type === "human") {
+        return [
+          { id, role: "user", type: "normal", content: m.content as string },
+        ];
+      }
+
+      if (m.type === "ai") {
+        const productMeta = (m as any)._productMeta;
+        const content = ((m.content ?? "") as string);
+        if (!productMeta && !content.trim()) {
+          return [];
+        }
+        return [
+          {
+            id,
+            role: "assistant",
+            type: productMeta ? "product" : "normal",
+            content: content,
+            productMeta: productMeta,
+          },
+        ];
+      }
+
+      if (m.type === "tool" && m.content) {
+        return [
+          {
+            id,
+            role: "assistant",
+            type: "normal",
+            content:
+              typeof m.content === "string"
+                ? m.content
+                : JSON.stringify(m.content),
+          },
+        ];
+      }
+
+      return [];
+    });
+  }, [messages]);
 
   /* ------------------------ 4b. Load transcript ------------------------ */
   const fetchedInitialRef = useRef(false);

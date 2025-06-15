@@ -1,4 +1,6 @@
 import { useState } from "react";
+import ProductCard from "./tools/ProductCard";
+import type { ProductMeta } from "./tools/ProductCard";
 
 interface Option {
   label: string;
@@ -12,10 +14,16 @@ interface Option {
 interface BotMessageProps {
   text: string;
   loading?: boolean;
-  backgroundColor?: string;
   options?: Option[];
   onOptionClick?: (value: string) => void;
   isError?: boolean;
+  type?: 'normal' | 'orderTracking' | 'product';
+  order?: {
+    orderNumber: string;
+    financialStatus: string;
+    orderStatusUrl: string;
+  };
+  productMeta?: ProductMeta;
 }
 
 export default function BotMessage({ 
@@ -23,7 +31,10 @@ export default function BotMessage({
   loading = false, 
   options, 
   onOptionClick,
-  isError = false
+  isError = false,
+  type = 'normal',
+  order,
+  productMeta
 }: BotMessageProps) {
   const [showOptions, setShowOptions] = useState(true);
 
@@ -44,38 +55,71 @@ export default function BotMessage({
       ));
   };
 
+  // Render order tracking card
+  if (type === 'orderTracking' && order) {
+    return (
+      <div className={`message-wrapper assistant order-tracking`}>
+        <div className="message">
+          <div>
+            <h4>Order #{order.orderNumber}</h4>
+            <p>Status: {order.financialStatus}</p>
+          </div>
+          <a href={order.orderStatusUrl} target="_blank" rel="noopener noreferrer">
+            👁️
+          </a>
+        </div>
+        {options && options.length > 0 && (
+          <div className="options">
+            {options.map((option, optionIndex) => (
+              <button
+                key={optionIndex}
+                onClick={() => onOptionClick?.(option.value || '')}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Render standard message bubble, potentially with a product card inside
   return (
     <div className={`message-wrapper ${isError ? 'assistant-error' : 'assistant'}`}>
-      <div className="image-container">
-        <div className="bot-icon">🤖</div>
-      </div>
-      {loading ? (
-        <div className="message">
-            <div className="typing-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        </div>
-      ) : (
-        <>
+      <div className="bot-message-wrapper">
+        {loading ? (
           <div className="message">
-            {formatText(text)}
-          </div>
-          {options && options.length > 0 && showOptions && (
-            <div className="options">
-              {options.map((option, index) => (
-                <button 
-                  key={index} 
-                  onClick={() => handleOptionClick(option.value || '')}
-                >
-                  {option.label}
-                </button>
-              ))}
+              <div className="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        ) : (
+          <>
+            {/* Render text content only if it exists and is not just whitespace */}
+            {text && text.trim() && <div className="message">{formatText(text)}</div>}
+            
+            {/* Render product card if meta is available */}
+            {type === 'product' && productMeta && <ProductCard product={productMeta} />}
+
+            {/* Render options if they exist */}
+            {options && options.length > 0 && showOptions && (
+              <div className="options">
+                {options.map((option, index) => (
+                  <button 
+                    key={index} 
+                    onClick={() => handleOptionClick(option.value || '')}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

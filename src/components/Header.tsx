@@ -22,9 +22,9 @@ export default function Header({
   return (
     <div className="header" style={headerGradient}>
       <h4>{shopName || 'Customer Service'}</h4>
-      <span>You are now chatting with {chatbotName || 'Soof'}</span>
+      <span>Je chat met {chatbotName || 'Soof'}</span>
       <div className="header-buttons">
-        <button onClick={onRestartChat}>New Chat</button>
+        <button onClick={onRestartChat}>Nieuwe chat</button>
       </div>
     </div>
   );

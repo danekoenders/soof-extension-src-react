@@ -89,7 +89,7 @@
 /* -------------------------------------------------------------------------- */
 /* User messages
 /* -------------------------------------------------------------------------- */
-.message-container-user {
+.message-wrapper.user {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -146,6 +146,12 @@
   color: var(--secondary-text);
   font-size: 0.8em;
   cursor: pointer;
+}
+
+.bot-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* -------------------------------------------------------------------------- */
