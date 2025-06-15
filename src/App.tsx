@@ -3,7 +3,7 @@ import { Client as LangGraphClient } from "@langchain/langgraph-sdk";
 import type { Message as LangGraphMessage } from "@langchain/langgraph-sdk";
 
 import Header from "./components/Header";
-import Messages from "./components/Messages";
+import Messages from "./components/messages/Messages";
 import Input from "./components/Input";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
@@ -32,6 +32,8 @@ export interface Message {
   type: "normal" | "product";
   content?: string;
   productMeta?: any;
+  options?: { label: string; value: string }[];
+  isWelcome?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -51,7 +53,7 @@ export default function App() {
   const [serveData, setServeData] = useState<ServeData | null>(null);
   const [isServeLoading, setIsServeLoading] = useState(true);
 
-  const { chatSession, setChatSession } = useChatSession();
+  const { chatSession, setChatSession, clearChatSession } = useChatSession();
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(
     chatSession.threadId ?? null
@@ -294,6 +296,77 @@ export default function App() {
     });
   }, [serveData]);
 
+  /* -------------------------- Derived flags --------------------------- */
+  const chatStarted = useMemo(() => {
+    return messages.some((m) => m.type === "human");
+  }, [messages]);
+
+  /* ---------------------- Welcome + Disclaimer ------------------------ */
+  const WELCOME_MESSAGE: Message = {
+    role: "assistant",
+    type: "normal",
+    content:
+      "Hey! 👋 Ik ben Soof, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!",
+    options: [
+      { label: "Bezorgstatus opvragen..", value: "Waar is mijn bestelling?" },
+      { label: "Product zoeken..", value: "Ik zoek een product" },
+      { label: "Medewerker spreken..", value: "Ik wil een medewerker spreken" },
+      { label: "Retourneren..", value: "Ik wil een retourneren" },
+    ],
+    isWelcome: true,
+  } as any;
+
+  /* -------------------- Inject welcome/disclaimer -------------------- */
+  const displayMessages: Message[] = useMemo(() => {
+    const base = [...mappedMessages];
+    if (!chatStarted) {
+      base.unshift(WELCOME_MESSAGE);
+    }
+    return base;
+  }, [mappedMessages, chatStarted, serveData]);
+
+  /* -------------------------- New chat handler -------------------------- */
+  const handleNewChat = async () => {
+    // Clear session data and localStorage
+    clearChatSession();
+
+    // Reset local state
+    setThreadId(null);
+    setMessages([]);
+    setSendFn(() => () => {});
+
+    // Fetch a new chat session
+    setIsSessionLoading(true);
+    try {
+      const res = await fetch(
+        `/apps/${SOOF_PROXY_URI}/chat/session/chatToken`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ localLanguage: LOCAL_LANGUAGE }),
+        }
+      );
+      if (!res.ok) throw new Error("Failed to create chat session");
+      const data = await res.json();
+
+      // Save new session
+      setChatSession({
+        active: true,
+        sessionToken: data.token,
+        expiresAt: data.expiresAt,
+        assistantId: data.assistant,
+        threadId: data.thread,
+        langGraphUrl: data.langGraphUrl,
+        transcript: [],
+      });
+      setThreadId(data.thread);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSessionLoading(false);
+    }
+  };
+
   if (isServeLoading || !serveData) {
     return (
       <div className="chat-loading">
@@ -308,10 +381,21 @@ export default function App() {
         shopName={serveData.shop.name}
         chatbotName={serveData.chatbot.customName}
         theme={serveData.chatbot.theme}
-        onRestartChat={() => window.location.reload()}
+        onRestartChat={handleNewChat}
       />
 
-      <Messages messages={mappedMessages} />
+      <Messages messages={displayMessages} onOptionSelect={handleSend} />
+
+      {/* Disclaimer shown only when chat not started */}
+      {!chatStarted && (
+        <div className="chat-disclaimer">
+          <p>
+            Alle gegevens die je hier achterlaat kunnen uitsluitend worden ingezien door de klantenservice van {serveData.shop.name} en door Soof AI, om de werking van de chatbot te verbeteren.
+          </p>
+          <p>Meer informatie vind je in de <a href="https://soof.ai/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a></p>
+          <p>Soof AI kan fouten maken. Controleer belangrijke informatie.</p>
+        </div>
+      )}
 
       <div style={{ padding: "8px" }}>
         {/* thread loading indicator will be inside StreamingChat triggering messages; not exposed here */}

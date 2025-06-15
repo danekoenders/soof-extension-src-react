@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
-import type { ProductMeta } from "./tools/ProductCard";
+import type { ProductMeta } from "../tools/ProductCard";
 
 interface Option {
   label: string;
@@ -26,13 +26,15 @@ interface Message {
   productMeta?: ProductMeta;
   options?: Option[];
   onOptionClick?: (value: string) => void;
+  isWelcome?: boolean;
 }
 
 interface MessagesProps {
   messages: Message[];
+  onOptionSelect: (value: string) => void;
 }
 
-export default function Messages({ messages }: MessagesProps) {
+export default function Messages({ messages, onOptionSelect }: MessagesProps) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,11 +57,12 @@ export default function Messages({ messages }: MessagesProps) {
           text={message.content || ""}
           loading={message.role === "assistant-loading" || !!message.loading}
           options={message.options}
-          onOptionClick={message.onOptionClick}
+          onOptionClick={message.onOptionClick || onOptionSelect}
           isError={message.role === "assistant-error"}
           type={message.type}
           order={message.order}
           productMeta={message.productMeta}
+          optionsLayout={message.isWelcome ? "horizontal-scroll" : undefined}
         />
       );
     }
