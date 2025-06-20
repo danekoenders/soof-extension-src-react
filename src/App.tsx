@@ -159,16 +159,23 @@ export default function App() {
     let pendingProductMeta: any = null;
 
     for (const msg of messages) {
-      if (msg.type === "tool" && typeof msg.content === "string") {
-        try {
-          const parsed = JSON.parse(msg.content);
-          if (parsed?.metadata?.title) {
-            pendingProductMeta = parsed.metadata;
-            continue; // skip tool message itself
+      if (msg.type === "tool") {
+        if ((msg as any).name === "product_info") {
+          if (typeof msg.content === "string") {
+            try {
+              const parsed = JSON.parse(msg.content);
+              if (parsed?.metadata) {
+                pendingProductMeta = parsed.metadata;
+              }
+            } catch (e) {
+              console.error("Failed to parse product info", e);
+            }
           }
-        } catch (e) {
-          /* ignore parse errors */
+          continue;
         }
+
+        // For all other tools we simply do not push the message into the UI.
+        continue;
       }
 
       if (msg.type === "ai") {
