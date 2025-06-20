@@ -70,19 +70,19 @@ export default function ProductCard({ product }: Props) {
         style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center", gap: 12 }}
       >
         {displayImage && (
-          <img
+        <img
             src={displayImage}
             alt={displayTitle}
-            style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 6 }}
-          />
-        )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <strong>{title}</strong>
+          style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 6 }}
+        />
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <strong>{title}</strong>
           {variants && variants.length > 0 && (
             <span style={{ fontSize: 13, color: '#555' }}>{displayTitle}</span>
           )}
-          {priceText && <span style={{ fontSize: 14 }}>{priceText}</span>}
-        </div>
+        {priceText && <span style={{ fontSize: 14 }}>{priceText}</span>}
+      </div>
       </a>
       {/* Variant switcher */}
       {variants && variants.length > 1 && (

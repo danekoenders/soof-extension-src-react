@@ -128,6 +128,18 @@
   border: 1px solid var(--error-accent-color);
 }
 
+.message-wrapper.assistant .loading-message {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-wrapper.assistant .loader-container {
+  width: 14px;
+  height: 14px;
+}
+
 .message-wrapper .options {
   display: flex;
   flex-direction: row;
@@ -281,13 +293,13 @@
 .typing-indicator {
   display: flex;
   align-items: center;
-  gap: 2px;
+  margin-bottom: -7px;
 }
 
 .typing-indicator span {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
   margin: 0 2px;
   background: var(--accent-text);
   border-radius: 50%;

@@ -66,7 +66,16 @@ export default function StreamingChat({
         content: text,
       } as unknown as LangGraphMessage;
 
-      messagesRef.current = [...messagesRef.current, localUserMsg];
+      // Create a temporary assistant loading placeholder that we will update
+      const placeholderId = `placeholder-${generatedId}`;
+      const loadingPlaceholder = {
+        id: placeholderId,
+        type: "ai",
+        content: "Thinking",
+        _isPlaceholder: true, // custom flag so App.tsx can treat this as a loading message
+      } as any as LangGraphMessage;
+
+      messagesRef.current = [...messagesRef.current, localUserMsg, loadingPlaceholder];
       onMessages(messagesRef.current);
 
       try {
@@ -100,18 +109,75 @@ export default function StreamingChat({
 
           let newMessages: LangGraphMessage[] | undefined;
 
-          if (event.startsWith("messages")) {
-            // data is an array of messages
-            newMessages = data as LangGraphMessage[];
-          } else if (event === "updates" && data) {
-            // updates event; attempt to extract messages from first key
+          if (event === "updates" && data) {
+            // Determine what kind of update we received to change placeholder text
             const nodeKeys = Object.keys(data || {});
             if (nodeKeys.length > 0) {
-              const maybe = data[nodeKeys[0]];
+              const nodeKey = nodeKeys[0];
+              let loadingText = "Thinking";
+
+              if (nodeKey === "agent") {
+                loadingText = "Thinking";
+              } else if (nodeKey === "tools") {
+                const firstToolMsg = Array.isArray(data[nodeKey]?.messages)
+                  ? data[nodeKey].messages[0]
+                  : undefined;
+                if (firstToolMsg && firstToolMsg.name === "product_info") {
+                  loadingText = "Searching products";
+                } else {
+                  loadingText = "Working";
+                }
+              } else if (nodeKey === "compliance") {
+                loadingText = "Checking";
+              }
+
+              // Update the placeholder message content
+              const current = [...messagesRef.current];
+              const idx = current.findIndex((msg: any) => msg._isPlaceholder);
+              if (idx !== -1) {
+                current[idx] = {
+                  ...(current[idx] as any),
+                  content: loadingText,
+                } as LangGraphMessage;
+                messagesRef.current = current;
+                onMessages(current);
+              }
+
+              // Attempt to extract messages array from the update node (if present)
+              const maybe = data[nodeKey];
               if (maybe && Array.isArray(maybe.messages)) {
                 newMessages = maybe.messages as LangGraphMessage[];
               }
             }
+          } else if (event.startsWith("messages/partial")) {
+            const partialMsgs = data as LangGraphMessage[];
+
+            // Determine if we have meaningful content yet
+            const hasContent = partialMsgs.some((pm) => {
+              if (typeof pm.content === "string") {
+                return pm.content.trim().length > 0;
+              }
+              return false;
+            });
+
+            if (hasContent) {
+              // Remove loading placeholder once real content starts streaming
+              messagesRef.current = messagesRef.current.filter(
+                (m: any) => !m._isPlaceholder
+              );
+            }
+
+            // data is an array of partial messages
+            newMessages = partialMsgs.map((m) => ({ ...m, _stream_done: false }));
+          } else if (
+            event === "messages" ||
+            event.startsWith("messages/complete")
+          ) {
+            // Final/full messages array
+            newMessages = (data as LangGraphMessage[]).map((m) => ({
+              ...m,
+              _stream_done: true,
+            }));
           }
 
           if (newMessages && newMessages.length) {

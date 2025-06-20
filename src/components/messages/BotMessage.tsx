@@ -86,7 +86,13 @@ export default function BotMessage({
     >
       <div className="bot-message-wrapper">
         {loading ? (
-          <div className="message">
+          <div className="message loading-message">
+            {/* Descriptive loading text */}
+            {text && text.trim() && (
+              <p className="loading-text">
+                {text}
+              </p>
+            )}
             <div className="typing-indicator">
               <span></span>
               <span></span>

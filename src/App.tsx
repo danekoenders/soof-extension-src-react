@@ -28,12 +28,13 @@ interface ServeData {
 // Minimal message type for Messages component
 export interface Message {
   id?: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "assistant-loading";
   type: "normal" | "product";
   content?: string;
   productMeta?: any;
   options?: { label: string; value: string }[];
   isWelcome?: boolean;
+  loading?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -192,6 +193,19 @@ export default function App() {
     return processed.flatMap((m): Message[] => {
       const id = (m as any).id as string | undefined;
 
+      // Detect our custom loading placeholder messages injected by StreamingChat
+      if ((m as any)._isPlaceholder) {
+        return [
+          {
+            id,
+            role: "assistant-loading",
+            type: "normal",
+            content: (m.content ?? "") as string,
+            loading: true,
+          },
+        ];
+      }
+
       if (m.type === "human") {
         return [
           { id, role: "user", type: "normal", content: m.content as string },
@@ -204,6 +218,7 @@ export default function App() {
         if (!productMeta && !content.trim()) {
           return [];
         }
+        const done = (m as any)._stream_done !== false; // default to true if undefined
         return [
           {
             id,
@@ -211,6 +226,7 @@ export default function App() {
             type: productMeta ? "product" : "normal",
             content: content,
             productMeta: productMeta,
+            loading: !done,
           },
         ];
       }
