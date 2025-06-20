@@ -124,6 +124,8 @@ export default function StreamingChat({
                   : undefined;
                 if (firstToolMsg && firstToolMsg.name === "product_info") {
                   loadingText = "Searching products";
+                } else if (firstToolMsg && firstToolMsg.name === "handoff") {
+                  loadingText = "Forwarding to support";
                 } else {
                   loadingText = "Working";
                 }
