@@ -1,75 +1,57 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { getWithExpiry, setWithExpiry, remove } from '../utils/expiringStorage';
 
-interface ChatSession {
+interface ChatSessionState {
   active: boolean;
-  expiresAt: string | null;
-  userEmail?: string | null;
-  sessionToken: string | null;
-  transcript: any[] | null;
-  assistantId: string | null;
-  threadId: string | null;
-  langGraphUrl: string | null;
+  jwt: string | null;
+  threadToken: string | null;
 }
 
-const defaultSession: ChatSession = {
+const defaultState: ChatSessionState = {
   active: false,
-  expiresAt: null,
-  userEmail: null,
-  sessionToken: null,
-  transcript: null,
-  assistantId: null,
-  threadId: null,
-  langGraphUrl: null,
+  jwt: null,
+  threadToken: null,
 };
 
+const JWT_KEY = '__soof-jwt';
+const THREAD_KEY = '__soof-thread-token';
+
 export const useChatSession = () => {
-  const [chatSession, setChatSessionState] = useState<ChatSession>(defaultSession);
+  const [state, setState] = useState<ChatSessionState>(defaultState);
 
-  // Load session from localStorage on mount
   useEffect(() => {
-    const loadSession = () => {
-      try {
-        const itemString = localStorage.getItem('soof-chat-session');
-        if (itemString) {
-          const item = JSON.parse(itemString);
-          const now = new Date();
-          const expiresAt = new Date(item.expiresAt);
-
-          if (expiresAt < now) {
-            localStorage.removeItem('soof-chat-session');
-            setChatSessionState(defaultSession);
-          } else {
-            setChatSessionState(item);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading chat session:', error);
-        setChatSessionState(defaultSession);
-      }
-    };
-
-    loadSession();
+    const jwt = getWithExpiry<string>(JWT_KEY);
+    const threadToken = getWithExpiry<string>(THREAD_KEY);
+    if (jwt || threadToken) {
+      setState({ active: !!jwt, jwt: jwt ?? null, threadToken: threadToken ?? null });
+    }
   }, []);
 
-  const setChatSession = (newSession: Partial<ChatSession>) => {
-    const updatedSession = { ...chatSession, ...newSession };
-    setChatSessionState(updatedSession);
-    
-    try {
-      localStorage.setItem('soof-chat-session', JSON.stringify(updatedSession));
-    } catch (error) {
-      console.error('Error saving chat session:', error);
-    }
-  };
+  const setJwt = useCallback((jwt: string, ttlMs: number) => {
+    setWithExpiry(JWT_KEY, jwt, ttlMs);
+    setState((prev) => ({ ...prev, active: true, jwt }));
+  }, []);
 
-  const clearChatSession = () => {
-    setChatSessionState(defaultSession);
-    localStorage.removeItem('soof-chat-session');
-  };
+  const setThreadToken = useCallback((threadToken: string | null, ttlMs?: number) => {
+    if (!threadToken) {
+      remove(THREAD_KEY);
+      setState((prev) => ({ ...prev, threadToken: null }));
+      return;
+    }
+    setWithExpiry(THREAD_KEY, threadToken, ttlMs ?? 7 * 24 * 60 * 60 * 1000);
+    setState((prev) => ({ ...prev, threadToken }));
+  }, []);
+
+  const clearAll = useCallback(() => {
+    remove(JWT_KEY);
+    remove(THREAD_KEY);
+    setState(defaultState);
+  }, []);
 
   return {
-    chatSession,
-    setChatSession,
-    clearChatSession,
+    chatSession: state,
+    setJwt,
+    setThreadToken,
+    clearAll,
   };
-}; 
+};

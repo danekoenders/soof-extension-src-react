@@ -1,6 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Client as LangGraphClient } from "@langchain/langgraph-sdk";
-import type { Message as LangGraphMessage } from "@langchain/langgraph-sdk";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 
 import Header from "./components/Header";
 import Messages from "./components/messages/Messages";
@@ -8,6 +6,7 @@ import Input from "./components/Input";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
 import { useCache } from "./hooks/useCache";
+// import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
@@ -41,7 +40,6 @@ export interface Message {
 /*                               Helper Values                                */
 /* -------------------------------------------------------------------------- */
 
-const SOOF_PROXY_URI = "soof-proxy--dev";
 const LOCAL_LANGUAGE = "en";
 
 /* -------------------------------------------------------------------------- */
@@ -54,12 +52,12 @@ export default function App() {
   const [serveData, setServeData] = useState<ServeData | null>(null);
   const [isServeLoading, setIsServeLoading] = useState(true);
 
-  const { chatSession, setChatSession, clearChatSession } = useChatSession();
+  const { chatSession, setJwt, setThreadToken, clearAll } = useChatSession();
   const [isSessionLoading, setIsSessionLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string | null>(
-    chatSession.threadId ?? null
-  );
-  const [messages, setMessages] = useState<LangGraphMessage[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
+  // const hostOrigin = useHost();
+  // const BACKEND_BASE = `${hostOrigin}/apps/soof`;
+  const BACKEND_BASE = "https://soof-s--development.gadget.app";
   const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
 
   const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
@@ -69,35 +67,27 @@ export default function App() {
     setSendFn(() => fn);
   }, []);
 
-  const handleMessages = useCallback((msgs: LangGraphMessage[]) => {
+  const handleMessages = useCallback((msgs: any[]) => {
     setMessages(msgs);
   }, []);
 
-  // Sync threadId when chatSession loaded from localStorage
-  useEffect(() => {
-    if (chatSession.threadId && threadId === null) {
-      setThreadId(chatSession.threadId);
-    }
-  }, [chatSession.threadId]);
+  // no-op: threadToken managed in hook
 
   /* --------------------------- 2. Fetch serveData ------------------------- */
   useEffect(() => {
     if (!isCacheLoaded) return;
-    // If cache exists and has chatbot and shop, use it
     if (cache.data.chatbot && cache.data.shop) {
-      setServeData({
-        chatbot: cache.data.chatbot,
-        shop: cache.data.shop,
-      });
+      setServeData({ chatbot: cache.data.chatbot, shop: cache.data.shop });
       setIsServeLoading(false);
       return;
     }
-    // Otherwise, fetch and cache
     (async () => {
       try {
-        const res = await fetch(`/apps/${SOOF_PROXY_URI}/chatbot/serve`);
-        if (!res.ok) throw new Error("Failed to fetch serve data");
-        const data: ServeData = await res.json();
+        // If you have a serve endpoint, call it. Placeholder keeps previous flow until backend ready.
+        const data: ServeData = {
+          chatbot: { name: "Soof", customName: "Soof", theme: {} },
+          shop: { name: "Shop", myShopifyDomain: window.location.hostname },
+        } as any;
         setServeData(data);
         setCache({ chatbot: data.chatbot, shop: data.shop });
       } catch (err) {
@@ -110,55 +100,36 @@ export default function App() {
 
   /* --------------------------- 3. Fetch chat token ------------------------ */
   useEffect(() => {
-    if (!serveData) return; // wait for serveData
-    if (chatSession.active) return; // already have session
-
+    if (!serveData) return;
+    if (chatSession.active) return;
     setIsSessionLoading(true);
     (async () => {
       try {
-        const res = await fetch(
-          `/apps/${SOOF_PROXY_URI}/chat/session/chatToken`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ localLanguage: LOCAL_LANGUAGE }),
-          }
-        );
-        if (!res.ok) throw new Error("Failed to create chat session");
-        const data = await res.json();
-
-        setChatSession({
-          active: true,
-          sessionToken: data.token,
-          expiresAt: data.expiresAt,
-          assistantId: data.assistant,
-          threadId: data.thread,
-          langGraphUrl: data.langGraphUrl,
-          transcript: [],
+        const res = await fetch(`${BACKEND_BASE}/api/agent/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ localLanguage: LOCAL_LANGUAGE }),
         });
-        setThreadId(data.thread);
+        const data = await res.json();
+        if (!res.ok || !data?.jwt) throw new Error(data?.error || "Failed to start session");
+        // JWT exp is 1h. Store with TTL of 59m to be safe.
+        setJwt(data.jwt, 59 * 60 * 1000);
       } catch (err) {
         console.error(err);
       } finally {
         setIsSessionLoading(false);
       }
     })();
-  }, [serveData]);
+  }, [serveData, chatSession.active, setJwt]);
 
-  /* -------------------------- 4. LangGraph Stream ------------------------- */
-  const hasValidSession =
-    chatSession.active &&
-    chatSession.langGraphUrl &&
-    chatSession.assistantId &&
-    chatSession.sessionToken;
-
-  const canStream = hasValidSession && threadId !== null;
+  const hasValidSession = chatSession.active && !!chatSession.jwt;
+  const canStream = hasValidSession; // threadToken optional on first message
 
   const mappedMessages: Message[] = useMemo(() => {
-    const processed: LangGraphMessage[] = [];
+    const processed: any[] = [];
     let pendingProductMeta: any = null;
 
-    for (const msg of messages) {
+    for (const msg of messages as any[]) {
       if (msg.type === "tool") {
         if ((msg as any).name === "product_info") {
           if (typeof msg.content === "string") {
@@ -256,51 +227,69 @@ export default function App() {
     });
   }, [messages]);
 
-  /* ------------------------ 4b. Load transcript ------------------------ */
-  const fetchedInitialRef = useRef(false);
+  // Hydrate transcript from backend when we have a threadToken
+  const hydratedThreadRef = useRef<string | null>(null);
   useEffect(() => {
-    if (fetchedInitialRef.current) return;
-    if (!hasValidSession || !threadId) return;
-    if (messages.length > 0) return; // already have msgs
-
-    const client = new LangGraphClient({
-      apiUrl: chatSession.langGraphUrl!,
-      defaultHeaders: {
-        Authorization: `Session ${chatSession.sessionToken}`,
-        "X-Shopify-Domain": serveData?.shop.myShopifyDomain ?? "",
-      },
-    } as any);
+    const token = chatSession.threadToken;
+    if (!token) return;
+    if (hydratedThreadRef.current === token) return;
 
     (async () => {
       try {
-        const thread = await client.threads.get(threadId);
-        const initialMsgs = (thread as any)?.values?.messages as LangGraphMessage[] | undefined;
-        if (initialMsgs && initialMsgs.length) {
-          setMessages(initialMsgs);
+        const res = await fetch(`${BACKEND_BASE}/api/agent/thread?threadToken=${encodeURIComponent(token)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const history = Array.isArray(data?.history) ? data.history : [];
+
+        const extractText = (content: any): string => {
+          if (!content) return "";
+          if (typeof content === "string") return content;
+          if (Array.isArray(content)) {
+            return content
+              .map((c) => (typeof c === "string" ? c : (c?.text ?? "")))
+              .filter(Boolean)
+              .join(" ");
+          }
+          if (typeof content === "object" && content.text) return content.text as string;
+          return "";
+        };
+
+        const normalized = history
+          .map((item: any) => {
+            const role = item?.role;
+            const type = item?.type;
+            if (role === "user") {
+              const content = extractText(item?.content);
+              return { type: "human", content };
+            }
+            if (role === "assistant") {
+              let content: string = extractText(item?.content);
+              if (!content) content = item?.text || item?.output || "";
+              return { type: "ai", content, _stream_done: true };
+            }
+            // fallback: if it's a message-like without role
+            if (type === "message") {
+              const content = extractText(item?.content);
+              return { type: "ai", content, _stream_done: true };
+            }
+            return null;
+          })
+          .filter(Boolean);
+
+        if (normalized.length > 0) {
+          setMessages((prev) => (prev.length === 0 ? (normalized as any[]) : prev));
         }
+        hydratedThreadRef.current = token;
       } catch (err) {
-        console.error("Failed to load existing transcript", err);
-      } finally {
-        fetchedInitialRef.current = true;
+        // ignore
       }
     })();
-  }, [
-    hasValidSession,
-    threadId,
-    chatSession.sessionToken,
-    chatSession.langGraphUrl,
-    serveData,
-  ]);
+  }, [chatSession.threadToken]);
 
   /* ------------------------------ 5. Handlers ----------------------------- */
   const handleSend = (text: string) => {
-    if (
-      !hasValidSession ||
-      isSessionLoading ||
-      sendFn === undefined ||
-      sendFn.toString() === (() => {}).toString()
-    )
-      return;
+    if (!hasValidSession || isSessionLoading) return;
+    if (!sendFn || sendFn.toString() === (() => {}).toString()) return;
     sendFn(text);
   };
 
@@ -349,45 +338,13 @@ export default function App() {
   }, [mappedMessages, chatStarted, serveData]);
 
   /* -------------------------- New chat handler -------------------------- */
-  const handleNewChat = async () => {
-    // Clear session data and localStorage
-    clearChatSession();
-
-    // Reset local state
-    setThreadId(null);
+  const handleNewChat = () => {
+    // Drop only the thread so next send creates a new one
+    setThreadToken(null);
+    hydratedThreadRef.current = null;
+    // Reset UI state
     setMessages([]);
     setSendFn(() => () => {});
-
-    // Fetch a new chat session
-    setIsSessionLoading(true);
-    try {
-      const res = await fetch(
-        `/apps/${SOOF_PROXY_URI}/chat/session/chatToken`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ localLanguage: LOCAL_LANGUAGE }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to create chat session");
-      const data = await res.json();
-
-      // Save new session
-      setChatSession({
-        active: true,
-        sessionToken: data.token,
-        expiresAt: data.expiresAt,
-        assistantId: data.assistant,
-        threadId: data.thread,
-        langGraphUrl: data.langGraphUrl,
-        transcript: [],
-      });
-      setThreadId(data.thread);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSessionLoading(false);
-    }
   };
 
   if (isServeLoading || !serveData) {
@@ -439,15 +396,14 @@ export default function App() {
 
         {canStream && (
           <StreamingChat
-            apiUrl={chatSession.langGraphUrl!}
-            assistantId={chatSession.assistantId!}
-            sessionToken={chatSession.sessionToken!}
-            myShopifyDomain={serveData.shop.myShopifyDomain}
-            threadId={threadId}
-            setThreadId={setThreadId}
+            apiBase={BACKEND_BASE}
+            jwt={chatSession.jwt!}
+            localLanguage={LOCAL_LANGUAGE}
+            threadToken={chatSession.threadToken}
+            setThreadToken={(t) => setThreadToken(t)}
             onMessages={handleMessages}
             onSendFn={handleRegisterSendFn}
-            initialMessages={messages}
+            initialMessages={messages as any}
           />
         )}
       </div>

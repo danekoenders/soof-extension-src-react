@@ -10,8 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.58",
-    "@langchain/langgraph-sdk": "^0.0.84",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
