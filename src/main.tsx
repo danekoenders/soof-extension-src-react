@@ -2,7 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import indexCss from "./index.css?inline";
-import componentsCss from "./components/styles.css?inline";
 
 // Expose a global that your component can call once its window is in the DOM
 (window as any).__soofMount = (shadowRoot: ShadowRoot) => {
@@ -24,7 +23,7 @@ import componentsCss from "./components/styles.css?inline";
   // inject CSS (both base styles and component styles)
   const styleEl = document.createElement("style");
   styleEl.setAttribute("data-soof", "");
-  styleEl.textContent = indexCss + "\n" + componentsCss;
+  styleEl.textContent = indexCss;
   shadowRoot.appendChild(styleEl);
 
   // mount React in the existing mount point

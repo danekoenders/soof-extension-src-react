@@ -20,11 +20,19 @@ export default function Header({
   };
 
   return (
-    <div className="header" style={headerGradient}>
-      <h4>{shopName || 'Customer Service'}</h4>
-      <span>Je chat met {chatbotName || 'Soof'}</span>
-      <div className="header-buttons">
-        <button onClick={onRestartChat}>Nieuwe chat</button>
+    <div 
+      className="min-h-[140px] text-white rounded-t-2xl flex flex-col items-center justify-center leading-tight text-lg"
+      style={headerGradient}
+    >
+      <h4 className="text-lg m-0 text-white">{shopName || 'Customer Service'}</h4>
+      <span className="text-sm text-white">Je chat met {chatbotName || 'Soof'}</span>
+      <div className="flex gap-2.5 mt-2.5">
+        <button 
+          onClick={onRestartChat}
+          className="w-fit h-fit px-2.5 py-1 rounded border border-gray-700 bg-transparent text-gray-700 text-xs cursor-pointer hover:bg-gray-50 transition-colors"
+        >
+          Nieuwe chat
+        </button>
       </div>
     </div>
   );

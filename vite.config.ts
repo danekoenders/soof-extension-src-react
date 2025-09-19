@@ -1,18 +1,19 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   build: {
-    outDir: '../soof-extension/extensions/soof-chat/assets',
-    assetsDir: '.',
+    outDir: "../soof-extension/extensions/soof-chat/assets",
+    assetsDir: ".",
     emptyOutDir: true,
     rollupOptions: {
-      input: './src/main.tsx',
+      input: "./src/main.tsx",
       output: {
-        entryFileNames: 'soof-extension.js',
-        assetFileNames: 'soof-[name][extname]',
+        entryFileNames: "soof-extension.js",
+        assetFileNames: "soof-[name][extname]",
       },
     },
-  }
-})
+  },
+});

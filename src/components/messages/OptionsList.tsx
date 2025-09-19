@@ -107,9 +107,9 @@ const OptionsList: React.FC<OptionsListProps> = ({
     const thumbLeft = (scrollLeft / scrollWidth) * 100;
 
     return (
-      <div className="options-horizontal-scroll-container">
+      <div className="relative pb-3 w-full min-w-0 box-border overflow-x-hidden">
         <div
-          className={`options options-${optionsLayout}`}
+          className="flex flex-row flex-nowrap overflow-x-auto gap-2 pb-0 w-full min-w-0 box-border pr-3.5 scrollbar-none"
           ref={scrollRef}
           style={{ overflowX: "auto" }}
         >
@@ -117,15 +117,16 @@ const OptionsList: React.FC<OptionsListProps> = ({
             <button
               key={index}
               onClick={() => onOptionClick?.(option.value || "")}
+              className="flex-none min-w-[120px] h-9 px-3 py-2 flex items-center rounded border-0 bg-gray-600 text-white text-xs cursor-pointer"
             >
               <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
               {option.label}
             </button>
           ))}
         </div>
-        <div className="custom-scrollbar-bar">
+        <div className="w-full h-1.5 bg-transparent rounded-sm mt-1 mb-0.5 pointer-events-none relative overflow-hidden max-w-[calc(100%-14px)]">
           <div
-            className="custom-scrollbar-thumb"
+            className="absolute top-0 left-0 h-full bg-gray-400 rounded-sm transition-all duration-100 pointer-events-none"
             style={{
               width: `${thumbWidth}%`,
               left: `${thumbLeft}%`,
@@ -135,12 +136,33 @@ const OptionsList: React.FC<OptionsListProps> = ({
       </div>
     );
   }
+  
+  // Handle vertical layout
+  if (optionsLayout === "vertical") {
+    return (
+      <div className="flex flex-col gap-2">
+        {options.map((option, index) => (
+          <button
+            key={index}
+            onClick={() => onOptionClick?.(option.value || "")}
+            className="w-full min-w-[120px] justify-start text-left h-9 px-3 py-2 text-base rounded border-0 bg-gray-600 text-white cursor-pointer"
+          >
+            <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  
+  // Default layout
   return (
-    <div className={`options options-${optionsLayout}`}>
+    <div className="flex flex-row flex-wrap justify-start gap-1.5">
       {options.map((option, index) => (
         <button
           key={index}
           onClick={() => onOptionClick?.(option.value || "")}
+          className="w-fit h-6 px-2.5 py-1.5 rounded border-0 bg-gray-600 text-white text-xs cursor-pointer"
         >
           <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
           {option.label}

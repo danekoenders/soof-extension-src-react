@@ -62,37 +62,37 @@ export default function ProductCard({ product }: Props) {
   const cardHref = variantId ? `${host}/variants/${variantId}` : undefined;
 
   return (
-    <div className="message">
+    <div className="px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border border-gray-200 bg-blue-50 max-w-[90%] text-black">
       <a
         href={cardHref}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center", gap: 12 }}
+        className="no-underline text-inherit flex items-center gap-3"
       >
         {displayImage && (
         <img
             src={displayImage}
             alt={displayTitle}
-          style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 6 }}
+            className="w-20 h-20 object-cover rounded-md"
         />
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <strong>{title}</strong>
+      <div className="flex flex-col gap-1">
+        <strong className="text-base">{title}</strong>
           {variants && variants.length > 0 && (
-            <span style={{ fontSize: 13, color: '#555' }}>{displayTitle}</span>
+            <span className="text-xs text-gray-600">{displayTitle}</span>
           )}
-        {priceText && <span style={{ fontSize: 14 }}>{priceText}</span>}
+        {priceText && <span className="text-sm">{priceText}</span>}
       </div>
       </a>
       {/* Variant switcher */}
       {variants && variants.length > 1 && (
-        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+        <div className="mt-2 flex gap-2">
           {variants.map((variant, idx) => {
             return (
               <a
                 key={variant.variant_id}
                 rel="noopener noreferrer"
-                style={{ textDecoration: "none" }}
+                className="no-underline"
                 onClick={e => {
                   setSelectedVariantIdx(idx);
                   if (!variant.available) e.preventDefault();
@@ -100,16 +100,13 @@ export default function ProductCard({ product }: Props) {
               >
                 <button
                   type="button"
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    border: idx === selectedVariantIdx ? "2px solid #0081b1" : "1px solid #ccc",
-                    background: idx === selectedVariantIdx ? "#e6f7ff" : "#fafbfc",
-                    color: "#222",
-                    cursor: variant.available ? "pointer" : "not-allowed",
-                    fontWeight: idx === selectedVariantIdx ? "bold" : "normal",
-                    opacity: variant.available ? 1 : 0.5,
-                  }}
+                  className={`px-2.5 py-1 rounded text-gray-800 cursor-pointer transition-all ${
+                    idx === selectedVariantIdx 
+                      ? 'border-2 border-blue-600 bg-blue-50 font-bold' 
+                      : 'border border-gray-300 bg-gray-50 font-normal'
+                  } ${
+                    variant.available ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
+                  }`}
                   disabled={!variant.available}
                   title={variant.available ? undefined : "Not available"}
                 >

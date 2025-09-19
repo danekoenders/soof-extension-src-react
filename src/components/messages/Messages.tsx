@@ -71,9 +71,9 @@ export default function Messages({ messages, onOptionSelect }: MessagesProps) {
   };
 
   return (
-    <div className="messages">
+    <div className="flex flex-col flex-grow gap-2.5 overflow-y-auto px-3.5 py-3.5">
       {messages.map((message, index) => renderMessage(message, index))}
-      <div id="el" ref={el} style={{ height: 10 }} />
+      <div id="el" ref={el} className="h-2.5" />
     </div>
   );
 }

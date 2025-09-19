@@ -55,16 +55,17 @@ export default function BotMessage({
   // Render order tracking card
   if (type === "orderTracking" && order) {
     return (
-      <div className={`message-wrapper assistant order-tracking`}>
-        <div className="message">
+      <div className="flex flex-col items-start w-full gap-1.5">
+        <div className="px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border border-gray-200 bg-blue-50 max-w-[90%] text-black flex items-center justify-between">
           <div>
-            <h4>Order #{order.orderNumber}</h4>
-            <p>Status: {order.financialStatus}</p>
+            <h4 className="text-lg font-medium m-0">Order #{order.orderNumber}</h4>
+            <p className="text-base m-0">Status: {order.financialStatus}</p>
           </div>
           <a
             href={order.orderStatusUrl}
             target="_blank"
             rel="noopener noreferrer"
+            className="text-2xl ml-4"
           >
             👁️
           </a>
@@ -81,29 +82,33 @@ export default function BotMessage({
 
   // Render standard message bubble, potentially with a product card inside
   return (
-    <div
-      className={`message-wrapper ${isError ? "assistant-error" : "assistant"}`}
-    >
-      <div className="bot-message-wrapper">
+    <div className="flex flex-col items-start w-full gap-1.5">
+      <div className="flex flex-col gap-2.5 max-w-[calc(100%+14px)]">
         {loading ? (
-          <div className="message loading-message">
+          <div className={`px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border max-w-[90%] text-black flex flex-row items-center justify-center ${
+            isError ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-blue-50'
+          }`}>
             {/* Descriptive loading text */}
             {text && text.trim() && (
-              <p className="loading-text">
+              <p className="mr-2">
                 {text}
               </p>
             )}
-            <div className="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
+            <div className="flex items-center -mb-1.5">
+              <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-200"></span>
+              <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-400"></span>
+              <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-600"></span>
             </div>
           </div>
         ) : (
           <>
             {/* Render text content only if it exists and is not just whitespace */}
             {text && text.trim() && (
-              <div className="message">{formatText(text)}</div>
+              <div className={`px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border max-w-[90%] text-black ${
+                isError ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-blue-50'
+              }`}>
+                {formatText(text)}
+              </div>
             )}
 
             {/* Render product card if meta is available */}

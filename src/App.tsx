@@ -52,7 +52,7 @@ export default function App() {
   const [serveData, setServeData] = useState<ServeData | null>(null);
   const [isServeLoading, setIsServeLoading] = useState(true);
 
-  const { chatSession, setJwt, setThreadToken, clearAll } = useChatSession();
+  const { chatSession, setJwt, setThreadToken } = useChatSession();
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   // const hostOrigin = useHost();
@@ -349,14 +349,17 @@ export default function App() {
 
   if (isServeLoading || !serveData) {
     return (
-      <div className="chat-loading">
-        <div className="loader">Loading configuration…</div>
+      <div className="flex items-center justify-center h-full">
+        <div className="flex items-center space-x-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+          <span>Loading configuration…</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="chatbot">
+    <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full max-w-sm h-3/5 min-h-96 max-h-[80vh] rounded-2xl overflow-hidden overscroll-contain">
       <Header
         shopName={serveData.shop.name}
         chatbotName={serveData.chatbot.customName}
@@ -368,19 +371,18 @@ export default function App() {
 
       {/* Disclaimer shown only when chat not started */}
       {!chatStarted && (
-        <div className="chat-disclaimer">
-          <p>
+        <div className="px-4 py-1.5 text-center text-xs text-gray-600 flex flex-col gap-1.5">
+          <p className="leading-6 m-0">
             Alle gegevens die je hier achterlaat kunnen uitsluitend worden ingezien door de klantenservice van {serveData.shop.name} en door Soof AI, om de werking van de chatbot te verbeteren.
           </p>
-          <p>Meer informatie vind je in de <a href="https://soof.ai/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a></p>
-          <p>Soof AI kan fouten maken. Controleer belangrijke informatie.</p>
+          <p className="leading-6 m-0">Meer informatie vind je in de <a href="https://soof.ai/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-600">Privacy Policy</a></p>
+          <p className="leading-6 m-0">Soof AI kan fouten maken. Controleer belangrijke informatie.</p>
         </div>
       )}
 
-      <div style={{ padding: "8px" }}>
-        {/* thread loading indicator will be inside StreamingChat triggering messages; not exposed here */}
+      <div className="p-2">
         {/* Connecting indicator while fetching session */}
-        {isSessionLoading && <span>Connecting…</span>}
+        {isSessionLoading && <span className="text-sm text-gray-500">Connecting…</span>}
 
         <Input
           onSend={handleSend}

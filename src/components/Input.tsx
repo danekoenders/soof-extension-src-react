@@ -34,14 +34,15 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
   };
 
   return (
-    <div className="input">
-      <form onSubmit={handleSend}>
+    <div>
+      <form onSubmit={handleSend} className="flex gap-1.5 p-1">
         <input
           type="text"
           onChange={handleInputChange}
           value={text}
           disabled={disabled}
           placeholder="Waar ben je naar op zoek?"
+          className="flex-grow px-2.5 py-1.5 border border-gray-300 rounded-xl shadow-sm text-base bg-white text-black focus:outline-none focus:border-blue-600 disabled:bg-gray-100"
           style={{
             color: theme.primaryText,
             backgroundColor: theme.background,
@@ -52,6 +53,7 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
         <button 
           type="submit" 
           disabled={disabled || !text.trim()}
+          className="w-14 h-14 px-1.5 py-3 border-none rounded-2xl cursor-pointer transition-colors disabled:cursor-not-allowed"
           style={{
             backgroundColor: disabled ? theme.disabledBackground : theme.primaryBackground,
             color: theme.secondaryText,
@@ -63,6 +65,7 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
             width="20"
             height="20"
             viewBox="0 0 500 500"
+            className="fill-current"
           >
             <g>
               <g>
