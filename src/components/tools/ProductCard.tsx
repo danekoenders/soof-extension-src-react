@@ -1,27 +1,6 @@
 import { useState } from "react";
 import { useHost } from "../../hooks/useHost";
-
-export interface PriceRange {
-  min: string;
-  max: string;
-  currency: string;
-}
-
-export interface ProductMeta {
-  title: string;
-  description?: string;
-  image_url?: string;
-  price_range?: PriceRange;
-  product_id?: string;
-  variants?: Array<{
-    variant_id: string;
-    title: string;
-    price: string;
-    currency: string;
-    available: boolean;
-    image_url?: string;
-  }>;
-}
+import type { ProductMeta } from "../../types/product";
 
 interface Props {
   product: ProductMeta;

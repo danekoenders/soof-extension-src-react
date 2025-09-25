@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
-import type { ProductMeta } from "../tools/ProductCard";
+import type { ProductMeta } from "../../types/product";
 
 interface Option {
   label: string;

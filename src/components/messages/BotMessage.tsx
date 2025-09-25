@@ -1,6 +1,6 @@
 import { useState } from "react";
 import ProductCard from "../tools/ProductCard";
-import type { ProductMeta } from "../tools/ProductCard";
+import type { ProductMeta } from "../../types/product";
 import OptionsList from "./OptionsList";
 import { simpleMarkdown } from "../../utils/simpleMarkdown";
 

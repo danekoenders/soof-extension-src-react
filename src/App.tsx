@@ -6,6 +6,7 @@ import Input from "./components/Input";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
 import { useCache } from "./hooks/useCache";
+import { normalizeProduct } from "./utils/productTransforms";
 // import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
@@ -255,24 +256,55 @@ export default function App() {
         };
 
         const normalized = history
-          .map((item: any) => {
+          .flatMap((item: any) => {
             const role = item?.role;
             const type = item?.type;
+
             if (role === "user") {
               const content = extractText(item?.content);
-              return { type: "human", content };
+              return [{ type: "human", content }];
             }
-            if (role === "assistant") {
+
+            // Handle assistant messages, including embedded frontend data
+            if (role === "assistant" || type === "message") {
+              const out: any[] = [];
+
+              // Extract plain text for assistant bubble
               let content: string = extractText(item?.content);
               if (!content) content = item?.text || item?.output || "";
-              return { type: "ai", content, _stream_done: true };
+              if (content && content.trim()) {
+                out.push({ type: "ai", content, _stream_done: true });
+              }
+
+              // Extract stored frontend data blocks and append product-card messages
+              try {
+                const blocks = Array.isArray(item?.content) ? item.content : [];
+                const frontendBlocks = blocks.filter((b: any) => b?.type === "frontend_data" && b?.data);
+                const products: any[] = frontendBlocks.flatMap((b: any) => Array.isArray(b.data?.products) ? b.data.products : []);
+                if (products.length > 0) {
+                  const productMessages = products
+                    .map((p: any) => normalizeProduct(p))
+                    .filter(Boolean)
+                    .map((pm) => ({
+                      type: "ai",
+                      content: "",
+                      _stream_done: true,
+                      _productMeta: pm,
+                    }));
+                  out.push(...productMessages);
+                }
+              } catch (_) {
+                // ignore malformed frontend data
+              }
+
+              // If neither text nor frontend data produced output, still return an empty ai to be safe
+              if (out.length === 0) {
+                out.push({ type: "ai", content: "", _stream_done: true });
+              }
+              return out;
             }
-            // fallback: if it's a message-like without role
-            if (type === "message") {
-              const content = extractText(item?.content);
-              return { type: "ai", content, _stream_done: true };
-            }
-            return null;
+
+            return [];
           })
           .filter(Boolean);
 
@@ -359,7 +391,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full max-w-sm h-3/5 min-h-96 max-h-[80vh] rounded-2xl overflow-hidden overscroll-contain">
+    <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-3/5 min-h-96 max-h-[80vh] rounded-2xl overflow-hidden overscroll-contain">
       <Header
         shopName={serveData.shop.name}
         chatbotName={serveData.chatbot.customName}
@@ -383,6 +415,7 @@ export default function App() {
       <div className="p-2">
         {/* Connecting indicator while fetching session */}
         {isSessionLoading && <span className="text-sm text-gray-500">Connecting…</span>}
+
 
         <Input
           onSend={handleSend}
@@ -408,6 +441,12 @@ export default function App() {
             initialMessages={messages as any}
           />
         )}
+
+        {/* Footer */}
+        <div className="px-1 pt-1 text-[11px] text-gray-400 flex items-center justify-between">
+          <span>Powered by Soof AI</span>
+          <span>protected by reCAPTCHA</span>
+        </div>
       </div>
     </div>
   );

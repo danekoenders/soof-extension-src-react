@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
+import { normalizeProduct } from "../utils/productTransforms";
+import type { ProductMeta } from "../types/product";
 
 type SimpleMessage = {
   id?: string;
   type: "human" | "ai" | "tool";
   content?: string;
+  name?: string;
   _isPlaceholder?: boolean;
   _stream_done?: boolean;
 };
@@ -115,6 +118,31 @@ export default function StreamingChat({
                   updatePlaceholder(event.msg || "Working…");
                   break;
                 }
+                case "assistant_output_start": {
+                  // ensure placeholder shows something subtle
+                  updatePlaceholder("");
+                  break;
+                }
+                case "mcp_call_started": {
+                  const toolName = event.toolName || event.name || "tool";
+                  updatePlaceholder(`🔧 ${toolName}…`);
+                  break;
+                }
+                case "mcp_call_completed": {
+                  // forward as tool message with output/error payload
+                  const toolMsg: SimpleMessage = {
+                    type: "tool",
+                    name: event.toolName,
+                    content: JSON.stringify({
+                      serverLabel: event.serverLabel,
+                      output: event.output,
+                      error: event.error,
+                    }),
+                  };
+                  messagesRef.current = [...messagesRef.current, toolMsg];
+                  onMessages(messagesRef.current);
+                  break;
+                }
                 case "delta": {
           const current = messagesRef.current.filter((m) => !m._isPlaceholder);
           const last = current[current.length - 1];
@@ -134,8 +162,22 @@ export default function StreamingChat({
                   }
                   break;
                 }
-                case "done": {
-                  // finalize last ai message and, if provided, normalize to your message structure shape (type: message)
+                case "item": {
+                  // Forward tool item outputs to UI
+                  const toolMsg: SimpleMessage = {
+                    type: "tool",
+                    name: event.name,
+                    content:
+                      typeof event.item === "string"
+                        ? event.item
+                        : JSON.stringify(event.item),
+                  };
+                  messagesRef.current = [...messagesRef.current, toolMsg];
+                  onMessages(messagesRef.current);
+                  break;
+                }
+                case "assistant_output_end": {
+                  // mark last ai message as done
                   const current = messagesRef.current.filter((m) => !m._isPlaceholder);
                   const last = current[current.length - 1];
                   if (last && last.type === "ai") last._stream_done = true;
@@ -143,8 +185,51 @@ export default function StreamingChat({
                   onMessages(current);
                   break;
                 }
-                case "item":
+                case "done": {
+                  // finalize last ai message
+                  let current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  const last = current[current.length - 1];
+                  if (last && last.type === "ai") last._stream_done = true;
+
+                  // If frontendData.products is provided, push product card messages
+                  try {
+                    const products = Array.isArray(event.frontendData?.products)
+                      ? event.frontendData.products
+                      : [];
+                    if (products.length > 0) {
+                      const productMessages = products
+                        .map((p: any) => normalizeProduct(p))
+                        .filter(Boolean)
+                        .map((pm: ProductMeta) => ({
+                          type: "ai",
+                          content: "",
+                          _stream_done: true,
+                          _productMeta: pm,
+                        } as any));
+                      current = [...current, ...productMessages];
+                    }
+                  } catch (_) {
+                    // ignore malformed frontendData
+                  }
+
+                  messagesRef.current = current;
+                  onMessages(current);
+                  break;
+                }
                 case "agent_switch":
+                case "tool_step":
+                case "assistant_output_start_internal":
+                case "assistant_output_token":
+                case "error": {
+                  // Optionally surface an error as an assistant message
+                  if (event.msg) {
+                    const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                    const errMsg: SimpleMessage = { type: "ai", content: String(event.msg), _stream_done: true };
+                    messagesRef.current = [...current, errMsg];
+                    onMessages(messagesRef.current);
+                  }
+                  break;
+                }
                 default:
                   break;
               }
