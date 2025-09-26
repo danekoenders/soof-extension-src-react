@@ -2,7 +2,8 @@ import { useState } from "react";
 import ProductCard from "../tools/ProductCard";
 import type { ProductMeta } from "../../types/product";
 import OptionsList from "./OptionsList";
-import { simpleMarkdown } from "../../utils/simpleMarkdown";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 interface Option {
   label: string;
@@ -48,8 +49,12 @@ export default function BotMessage({
   };
 
   const formatText = (text: string) => {
-    const html = simpleMarkdown(text);
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
+    const html = DOMPurify.sanitize(marked.parse(text ?? "") as string);
+    return (
+      <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-a:text-blue-600 hover:prose-a:underline prose-ul:list-disc prose-li:marker:text-gray-400 prose-img:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+        <div dangerouslySetInnerHTML={{ __html: html }} />
+      </div>
+    );
   };
 
   // Render order tracking card

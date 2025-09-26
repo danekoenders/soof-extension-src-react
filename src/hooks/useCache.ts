@@ -1,8 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 interface CacheData {
-  chatbot: any | null;
-  shop: any | null;
+  serveData?: {
+    settings: {
+      agentName: string;
+      theme: any;
+      functions: any;
+      primaryColor?: string;
+      secondaryColor?: string;
+    };
+    name: string;
+    myShopifyDomain: string;
+  };
 }
 
 interface Cache {
@@ -11,10 +20,7 @@ interface Cache {
 }
 
 const defaultCache: Cache = {
-  data: {
-    chatbot: null,
-    shop: null,
-  },
+  data: {},
   expiresAt: null,
 };
 
@@ -26,21 +32,21 @@ export const useCache = () => {
   useEffect(() => {
     const loadCache = () => {
       try {
-        const itemString = sessionStorage.getItem('soof-chat-cache');
+        const itemString = sessionStorage.getItem("soof-chat-cache");
         if (itemString) {
           const item = JSON.parse(itemString);
           const now = new Date();
           const expiresAt = new Date(item.expiresAt);
 
           if (expiresAt < now) {
-            sessionStorage.removeItem('soof-chat-cache');
+            sessionStorage.removeItem("soof-chat-cache");
             setCacheState(defaultCache);
           } else {
             setCacheState(item);
           }
         }
       } catch (error) {
-        console.error('Error loading cache:', error);
+        console.error("Error loading cache:", error);
         setCacheState(defaultCache);
       } finally {
         setIsLoaded(true);
@@ -59,15 +65,15 @@ export const useCache = () => {
       };
 
       setCacheState(updatedCache);
-      sessionStorage.setItem('soof-chat-cache', JSON.stringify(updatedCache));
+      sessionStorage.setItem("soof-chat-cache", JSON.stringify(updatedCache));
     } catch (error) {
-      console.error('Error saving cache:', error);
+      console.error("Error saving cache:", error);
     }
   };
 
   const clearCache = () => {
     setCacheState(defaultCache);
-    sessionStorage.removeItem('soof-chat-cache');
+    sessionStorage.removeItem("soof-chat-cache");
   };
 
   return {
@@ -76,4 +82,4 @@ export const useCache = () => {
     clearCache,
     isLoaded,
   };
-}; 
+};

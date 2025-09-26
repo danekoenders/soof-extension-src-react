@@ -14,15 +14,15 @@ import { normalizeProduct } from "./utils/productTransforms";
 /* -------------------------------------------------------------------------- */
 
 interface ServeData {
-  chatbot: {
-    name: string;
-    customName: string;
+  settings: {
+    agentName: string;
     theme: any;
+    functions: any;
+    primaryColor?: string;
+    secondaryColor?: string;
   };
-  shop: {
-    name: string;
-    myShopifyDomain: string;
-  };
+  name: string;
+  myShopifyDomain: string;
 }
 
 // Minimal message type for Messages component
@@ -77,20 +77,18 @@ export default function App() {
   /* --------------------------- 2. Fetch serveData ------------------------- */
   useEffect(() => {
     if (!isCacheLoaded) return;
-    if (cache.data.chatbot && cache.data.shop) {
-      setServeData({ chatbot: cache.data.chatbot, shop: cache.data.shop });
+    if (cache.data.serveData) {
+      setServeData(cache.data.serveData);
       setIsServeLoading(false);
       return;
     }
     (async () => {
       try {
-        // If you have a serve endpoint, call it. Placeholder keeps previous flow until backend ready.
-        const data: ServeData = {
-          chatbot: { name: "Soof", customName: "Soof", theme: {} },
-          shop: { name: "Shop", myShopifyDomain: window.location.hostname },
-        } as any;
+        const res = await fetch(`${BACKEND_BASE}/api/agent/serve`);
+        if (!res.ok) throw new Error('Failed to fetch serve data');
+        const data: ServeData = await res.json();
         setServeData(data);
-        setCache({ chatbot: data.chatbot, shop: data.shop });
+        setCache({ serveData: data });
       } catch (err) {
         console.error(err);
       } finally {
@@ -112,7 +110,8 @@ export default function App() {
           body: JSON.stringify({ localLanguage: LOCAL_LANGUAGE }),
         });
         const data = await res.json();
-        if (!res.ok || !data?.jwt) throw new Error(data?.error || "Failed to start session");
+        if (!res.ok || !data?.jwt)
+          throw new Error(data?.error || "Failed to start session");
         // JWT exp is 1h. Store with TTL of 59m to be safe.
         setJwt(data.jwt, 59 * 60 * 1000);
       } catch (err) {
@@ -193,7 +192,7 @@ export default function App() {
 
       if (m.type === "ai") {
         const productMeta = (m as any)._productMeta;
-        const content = ((m.content ?? "") as string);
+        const content = (m.content ?? "") as string;
         if (!productMeta && !content.trim()) {
           return [];
         }
@@ -237,7 +236,11 @@ export default function App() {
 
     (async () => {
       try {
-        const res = await fetch(`${BACKEND_BASE}/api/agent/thread?threadToken=${encodeURIComponent(token)}`);
+        const res = await fetch(
+          `${BACKEND_BASE}/api/agent/thread?threadToken=${encodeURIComponent(
+            token
+          )}`
+        );
         if (!res.ok) return;
         const data = await res.json();
         const history = Array.isArray(data?.history) ? data.history : [];
@@ -247,11 +250,12 @@ export default function App() {
           if (typeof content === "string") return content;
           if (Array.isArray(content)) {
             return content
-              .map((c) => (typeof c === "string" ? c : (c?.text ?? "")))
+              .map((c) => (typeof c === "string" ? c : c?.text ?? ""))
               .filter(Boolean)
               .join(" ");
           }
-          if (typeof content === "object" && content.text) return content.text as string;
+          if (typeof content === "object" && content.text)
+            return content.text as string;
           return "";
         };
 
@@ -279,8 +283,12 @@ export default function App() {
               // Extract stored frontend data blocks and append product-card messages
               try {
                 const blocks = Array.isArray(item?.content) ? item.content : [];
-                const frontendBlocks = blocks.filter((b: any) => b?.type === "frontend_data" && b?.data);
-                const products: any[] = frontendBlocks.flatMap((b: any) => Array.isArray(b.data?.products) ? b.data.products : []);
+                const frontendBlocks = blocks.filter(
+                  (b: any) => b?.type === "frontend_data" && b?.data
+                );
+                const products: any[] = frontendBlocks.flatMap((b: any) =>
+                  Array.isArray(b.data?.products) ? b.data.products : []
+                );
                 if (products.length > 0) {
                   const productMessages = products
                     .map((p: any) => normalizeProduct(p))
@@ -309,7 +317,9 @@ export default function App() {
           .filter(Boolean);
 
         if (normalized.length > 0) {
-          setMessages((prev) => (prev.length === 0 ? (normalized as any[]) : prev));
+          setMessages((prev) =>
+            prev.length === 0 ? (normalized as any[]) : prev
+          );
         }
         hydratedThreadRef.current = token;
       } catch (err) {
@@ -330,7 +340,7 @@ export default function App() {
   // Apply theme variables to the document when serveData is available
   useEffect(() => {
     if (!serveData) return;
-    const theme = (serveData.chatbot as any).theme ?? {};
+    const theme = serveData.settings?.theme ?? {};
     Object.entries(theme).forEach(([key, value]) => {
       if (typeof value === "string") {
         // css custom property names should be kebab-case
@@ -393,9 +403,9 @@ export default function App() {
   return (
     <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-3/5 min-h-96 max-h-[80vh] rounded-2xl overflow-hidden overscroll-contain">
       <Header
-        shopName={serveData.shop.name}
-        chatbotName={serveData.chatbot.customName}
-        theme={serveData.chatbot.theme}
+        shopName={serveData.name}
+        chatbotName={serveData.settings.agentName}
+        theme={serveData.settings.theme}
         onRestartChat={handleNewChat}
       />
 
@@ -405,17 +415,32 @@ export default function App() {
       {!chatStarted && (
         <div className="px-4 py-1.5 text-center text-xs text-gray-600 flex flex-col gap-1.5">
           <p className="leading-6 m-0">
-            Alle gegevens die je hier achterlaat kunnen uitsluitend worden ingezien door de klantenservice van {serveData.shop.name} en door Soof AI, om de werking van de chatbot te verbeteren.
+            Alle gegevens die je hier achterlaat kunnen uitsluitend worden
+            ingezien door de klantenservice van {serveData.name} en door
+            Soof AI, om de werking van de chatbot te verbeteren.
           </p>
-          <p className="leading-6 m-0">Meer informatie vind je in de <a href="https://soof.ai/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-600">Privacy Policy</a></p>
-          <p className="leading-6 m-0">Soof AI kan fouten maken. Controleer belangrijke informatie.</p>
+          <p className="leading-6 m-0">
+            Meer informatie vind je in de{" "}
+            <a
+              href="https://soof.ai/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600"
+            >
+              Privacy Policy
+            </a>
+          </p>
+          <p className="leading-6 m-0">
+            Soof AI kan fouten maken. Controleer belangrijke informatie.
+          </p>
         </div>
       )}
 
       <div className="p-2">
         {/* Connecting indicator while fetching session */}
-        {isSessionLoading && <span className="text-sm text-gray-500">Connecting…</span>}
-
+        {isSessionLoading && (
+          <span className="text-sm text-gray-500">Connecting…</span>
+        )}
 
         <Input
           onSend={handleSend}
@@ -425,7 +450,7 @@ export default function App() {
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
           }
-          theme={serveData.chatbot.theme}
+          theme={serveData.settings.theme}
           isMobile={false}
         />
 
@@ -444,7 +469,7 @@ export default function App() {
 
         {/* Footer */}
         <div className="px-1 pt-1 text-[11px] text-gray-400 flex items-center justify-between">
-          <span>Powered by Soof AI</span>
+          <span>Powered by Laintern</span>
           <span>protected by reCAPTCHA</span>
         </div>
       </div>
