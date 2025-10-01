@@ -1,6 +1,11 @@
 import { useEffect, useRef } from "react";
 import { normalizeProduct } from "../utils/productTransforms";
 import type { ProductMeta } from "../types/product";
+import type { GuardrailData, ClaimsValidation } from "../types/guardrail";
+
+type LocalGuardrailState = GuardrailData & {
+  hasClearedForRegen?: boolean;
+};
 
 type SimpleMessage = {
   id?: string;
@@ -9,6 +14,7 @@ type SimpleMessage = {
   name?: string;
   _isPlaceholder?: boolean;
   _stream_done?: boolean;
+  _guardrailData?: GuardrailData;
 };
 
 interface StreamingChatProps {
@@ -34,6 +40,7 @@ export default function StreamingChat({
 }: StreamingChatProps) {
   const messagesRef = useRef<SimpleMessage[]>([]);
   const cfgRef = useRef({ apiBase, jwt, localLanguage, threadToken });
+  const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
@@ -115,12 +122,50 @@ export default function StreamingChat({
               const event = JSON.parse(line);
               switch (event.type) {
                 case "phase": {
+                  // Handle guardrail phases
+                  if (event.phase === "validating") {
+                    // Store the original response when validation starts
+                    const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                    const last = current[current.length - 1];
+                    
+                    if (last && last.type === "ai" && last.content) {
+                      guardrailStateRef.current = {
+                        wasRegenerated: false,
+                        validationPhase: event.phase,
+                        originalResponse: last.content,
+                      };
+                      
+                      last._guardrailData = { ...guardrailStateRef.current };
+                      messagesRef.current = [...current.slice(0, -1), last];
+                      onMessages(messagesRef.current);
+                    }
+                  } else if (event.phase === "regenerating") {
+                    // Update phase to regenerating
+                    if (guardrailStateRef.current) {
+                      guardrailStateRef.current.validationPhase = event.phase;
+                      guardrailStateRef.current.hasClearedForRegen = false;
+                      
+                      // Update the current AI message with regenerating status
+                      const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                      const last = current[current.length - 1];
+                      if (last && last.type === "ai") {
+                        last._guardrailData = { ...guardrailStateRef.current };
+                        messagesRef.current = [...current.slice(0, -1), last];
+                        onMessages(messagesRef.current);
+                      }
+                    }
+                  } else if (event.phase === "thinking") {
+                    // Reset guardrail state for new thinking phase
+                    guardrailStateRef.current = null;
+                  }
                   updatePlaceholder(event.msg || "Working…");
                   break;
                 }
                 case "assistant_output_start": {
-                  // ensure placeholder shows something subtle
-                  updatePlaceholder("");
+                  // real tokens are starting: drop any placeholder/status bubble
+                  const withoutPlaceholders = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  messagesRef.current = withoutPlaceholders;
+                  onMessages(withoutPlaceholders);
                   break;
                 }
                 case "mcp_call_started": {
@@ -144,16 +189,36 @@ export default function StreamingChat({
                   break;
                 }
                 case "delta": {
-          const current = messagesRef.current.filter((m) => !m._isPlaceholder);
-          const last = current[current.length - 1];
-          if (!last || last.type !== "ai" || last._stream_done) {
-            const aiMsg: SimpleMessage = { type: "ai", content: event.delta || "", _stream_done: false };
-            messagesRef.current = [...current, aiMsg];
-          } else {
-            last.content = (last.content || "") + (event.delta || "");
-            messagesRef.current = [...current.slice(0, -1), last];
-          }
-          onMessages(messagesRef.current);
+                  const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  const last = current[current.length - 1];
+                  
+                  // Check if we're in regenerating phase and this is the first delta
+                  const isRegenerating = guardrailStateRef.current?.validationPhase === "regenerating";
+                  const shouldStartFresh = isRegenerating && last && last.type === "ai" && !guardrailStateRef.current?.hasClearedForRegen;
+                  
+                  if (!last || last.type !== "ai" || (last._stream_done && !isRegenerating)) {
+                    const aiMsg: SimpleMessage = { 
+                      type: "ai", 
+                      content: event.delta || "", 
+                      _stream_done: false,
+                      _guardrailData: guardrailStateRef.current ? { ...guardrailStateRef.current } : undefined
+                    };
+                    messagesRef.current = [...current, aiMsg];
+                  } else if (shouldStartFresh) {
+                    // Start fresh content for regenerated response
+                    last.content = event.delta || "";
+                    last._guardrailData = { ...guardrailStateRef.current! };
+                    guardrailStateRef.current!.hasClearedForRegen = true;
+                    messagesRef.current = [...current.slice(0, -1), last];
+                  } else {
+                    last.content = (last.content || "") + (event.delta || "");
+                    // Preserve or update guardrail data
+                    if (guardrailStateRef.current) {
+                      last._guardrailData = { ...guardrailStateRef.current };
+                    }
+                    messagesRef.current = [...current.slice(0, -1), last];
+                  }
+                  onMessages(messagesRef.current);
                   break;
                 }
                 case "session_state": {
@@ -181,6 +246,8 @@ export default function StreamingChat({
                   const current = messagesRef.current.filter((m) => !m._isPlaceholder);
                   const last = current[current.length - 1];
                   if (last && last.type === "ai") last._stream_done = true;
+
+                  // if we are regenerating, keep the same AI message (do nothing extra)
                   messagesRef.current = current;
                   onMessages(current);
                   break;
@@ -189,7 +256,31 @@ export default function StreamingChat({
                   // finalize last ai message
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
                   const last = current[current.length - 1];
-                  if (last && last.type === "ai") last._stream_done = true;
+                  if (last && last.type === "ai") {
+                    last._stream_done = true;
+                    
+                    // Handle claims validation data if present
+                    if (event.claimsValidation) {
+                      const claimsValidation: ClaimsValidation = {
+                        isCompliant: event.claimsValidation.isCompliant || false,
+                        violatedClaims: event.claimsValidation.violatedClaims || [],
+                        allowedClaims: event.claimsValidation.allowedClaims || [],
+                        suggestions: event.claimsValidation.suggestions || [],
+                        complianceScore: event.claimsValidation.complianceScore || 0,
+                      };
+                      
+                      const guardrailData: GuardrailData = {
+                        wasRegenerated: event.claimsValidation.wasRegenerated || false,
+                        originalResponse: event.claimsValidation.originalResponse,
+                        regeneratedResponse: event.claimsValidation.regeneratedResponse,
+                        claimsValidation,
+                        validationPhase: 'done',
+                      };
+                      
+                      last._guardrailData = guardrailData;
+                      guardrailStateRef.current = null; // Reset state
+                    }
+                  }
 
                   // If frontendData.products is provided, push product card messages
                   try {

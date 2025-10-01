@@ -34,30 +34,20 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
   };
 
   return (
-    <div>
-      <form onSubmit={handleSend} className="flex gap-1.5 p-1">
+    <>
+      <form onSubmit={handleSend} className="flex gap-1.5 border border-gray-300 rounded-xl">
         <input
           type="text"
           onChange={handleInputChange}
           value={text}
           disabled={disabled}
           placeholder="Waar ben je naar op zoek?"
-          className="flex-grow px-2.5 py-1.5 border border-gray-300 rounded-xl shadow-sm text-base bg-white text-black focus:outline-none focus:border-blue-600 disabled:bg-gray-100"
-          style={{
-            color: theme.primaryText,
-            backgroundColor: theme.background,
-            border: `1px solid ${theme.background}`,
-            fontSize: isMobile ? '16px' : '1em',
-          }}
+          className={`flex-grow px-2.5 py-1.5 shadow-sm ${isMobile ? 'text-base' : 'text-[1em]'} bg-white text-black focus:outline-none focus:border-blue-600 disabled:bg-gray-100`}
         />
         <button 
           type="submit" 
           disabled={disabled || !text.trim()}
-          className="w-14 h-14 px-1.5 py-3 border-none rounded-2xl cursor-pointer transition-colors disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: disabled ? theme.disabledBackground : theme.primaryBackground,
-            color: theme.secondaryText,
-          }}
+          className={`flex items-center justify-center w-14 h-14 px-1.5 py-3 border-none rounded-2xl cursor-pointer transition-colors disabled:cursor-not-allowed ${disabled ? 'bg-gray-100' : 'bg-blue-600 text-white'}`}
         >
           <svg
             version="1.1"
@@ -65,7 +55,7 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
             width="20"
             height="20"
             viewBox="0 0 500 500"
-            className="fill-current"
+            className="fill-current rotate-270"
           >
             <g>
               <g>
@@ -75,6 +65,6 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
           </svg>
         </button>
       </form>
-    </div>
+    </>
   );
 }

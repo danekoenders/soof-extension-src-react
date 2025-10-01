@@ -7,6 +7,7 @@ import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
 import { useCache } from "./hooks/useCache";
 import { normalizeProduct } from "./utils/productTransforms";
+import type { GuardrailData } from "./types/guardrail";
 // import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
@@ -25,6 +26,7 @@ interface ServeData {
   myShopifyDomain: string;
 }
 
+
 // Minimal message type for Messages component
 export interface Message {
   id?: string;
@@ -35,6 +37,7 @@ export interface Message {
   options?: { label: string; value: string }[];
   isWelcome?: boolean;
   loading?: boolean;
+  guardrailData?: GuardrailData;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -56,9 +59,12 @@ export default function App() {
   const { chatSession, setJwt, setThreadToken } = useChatSession();
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
+  const [isLoadingThread, setIsLoadingThread] = useState(false);
   // const hostOrigin = useHost();
   // const BACKEND_BASE = `${hostOrigin}/apps/soof`;
-  const BACKEND_BASE = "https://soof-s--development.gadget.app";
+  // const BACKEND_BASE = "https://soof-s--development.gadget.app";
+  const BACKEND_BASE = "http://localhost:3000";
+  // const BACKEND_BASE = "https://laintern-agent.fly.dev";
   const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
 
   const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
@@ -205,6 +211,7 @@ export default function App() {
             content: content,
             productMeta: productMeta,
             loading: !done,
+            guardrailData: (m as any)._guardrailData,
           },
         ];
       }
@@ -233,8 +240,16 @@ export default function App() {
     const token = chatSession.threadToken;
     if (!token) return;
     if (hydratedThreadRef.current === token) return;
+    
+    // Only fetch if messages are empty (page refresh/returning user)
+    // Skip fetch if we're already in the middle of a conversation
+    if (messages.length > 0) {
+      hydratedThreadRef.current = token; // Mark as "hydrated" to prevent future fetches
+      return;
+    }
 
     (async () => {
+      setIsLoadingThread(true);
       try {
         const res = await fetch(
           `${BACKEND_BASE}/api/agent/thread?threadToken=${encodeURIComponent(
@@ -317,13 +332,13 @@ export default function App() {
           .filter(Boolean);
 
         if (normalized.length > 0) {
-          setMessages((prev) =>
-            prev.length === 0 ? (normalized as any[]) : prev
-          );
+          setMessages(normalized as any[]);
         }
         hydratedThreadRef.current = token;
       } catch (err) {
         // ignore
+      } finally {
+        setIsLoadingThread(false);
       }
     })();
   }, [chatSession.threadToken]);
@@ -373,11 +388,12 @@ export default function App() {
   /* -------------------- Inject welcome/disclaimer -------------------- */
   const displayMessages: Message[] = useMemo(() => {
     const base = [...mappedMessages];
-    if (!chatStarted) {
+    // Only show welcome message if chat hasn't started AND we're not loading thread data
+    if (!chatStarted && !isLoadingThread) {
       base.unshift(WELCOME_MESSAGE);
     }
     return base;
-  }, [mappedMessages, chatStarted, serveData]);
+  }, [mappedMessages, chatStarted, isLoadingThread, serveData]);
 
   /* -------------------------- New chat handler -------------------------- */
   const handleNewChat = () => {
@@ -387,6 +403,7 @@ export default function App() {
     // Reset UI state
     setMessages([]);
     setSendFn(() => () => {});
+    setIsLoadingThread(false);
   };
 
   if (isServeLoading || !serveData) {
@@ -401,7 +418,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-3/5 min-h-96 max-h-[80vh] rounded-2xl overflow-hidden overscroll-contain">
+    <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[70vh] rounded-2xl overflow-hidden overscroll-contain">
       <Header
         shopName={serveData.name}
         chatbotName={serveData.settings.agentName}
@@ -409,10 +426,10 @@ export default function App() {
         onRestartChat={handleNewChat}
       />
 
-      <Messages messages={displayMessages} onOptionSelect={handleSend} />
+      <Messages messages={displayMessages} onOptionSelect={handleSend} isLoadingThread={isLoadingThread} />
 
-      {/* Disclaimer shown only when chat not started */}
-      {!chatStarted && (
+      {/* Disclaimer shown only when chat not started and not loading thread */}
+      {!chatStarted && !isLoadingThread && (
         <div className="px-4 py-1.5 text-center text-xs text-gray-600 flex flex-col gap-1.5">
           <p className="leading-6 m-0">
             Alle gegevens die je hier achterlaat kunnen uitsluitend worden
@@ -436,7 +453,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="p-2">
+      <div className="p-4">
         {/* Connecting indicator while fetching session */}
         {isSessionLoading && (
           <span className="text-sm text-gray-500">Connecting…</span>

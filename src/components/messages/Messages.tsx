@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
+import { SkeletonMessages } from "./SkeletonMessage";
 import type { ProductMeta } from "../../types/product";
+import type { GuardrailData } from "../../types/guardrail";
 
 interface Option {
   label: string;
@@ -27,14 +29,16 @@ interface Message {
   options?: Option[];
   onOptionClick?: (value: string) => void;
   isWelcome?: boolean;
+  guardrailData?: GuardrailData;
 }
 
 interface MessagesProps {
   messages: Message[];
   onOptionSelect: (value: string) => void;
+  isLoadingThread?: boolean;
 }
 
-export default function Messages({ messages, onOptionSelect }: MessagesProps) {
+export default function Messages({ messages, onOptionSelect, isLoadingThread = false }: MessagesProps) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export default function Messages({ messages, onOptionSelect }: MessagesProps) {
           order={message.order}
           productMeta={message.productMeta}
           optionsLayout={message.isWelcome ? "horizontal-scroll" : undefined}
+          guardrailData={message.guardrailData}
         />
       );
     }
@@ -71,8 +76,12 @@ export default function Messages({ messages, onOptionSelect }: MessagesProps) {
   };
 
   return (
-    <div className="flex flex-col flex-grow gap-2.5 overflow-y-auto px-3.5 py-3.5">
-      {messages.map((message, index) => renderMessage(message, index))}
+    <div className="flex flex-col flex-grow gap-2.5 overflow-y-auto px-4 py-3.5">
+      {isLoadingThread ? (
+        <SkeletonMessages />
+      ) : (
+        messages.map((message, index) => renderMessage(message, index))
+      )}
       <div id="el" ref={el} className="h-2.5" />
     </div>
   );
