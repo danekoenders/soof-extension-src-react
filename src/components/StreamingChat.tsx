@@ -288,14 +288,17 @@ export default function StreamingChat({
                       ? event.frontendData.products
                       : [];
                     if (products.length > 0) {
+                      const groupId = `product-group-${Date.now()}`;
                       const productMessages = products
                         .map((p: any) => normalizeProduct(p))
                         .filter(Boolean)
-                        .map((pm: ProductMeta) => ({
+                        .map((pm: ProductMeta, idx: number) => ({
+                          id: `${groupId}-${idx}`,
                           type: "ai",
                           content: "",
                           _stream_done: true,
                           _productMeta: pm,
+                          _productGroupId: groupId,
                         } as any));
                       current = [...current, ...productMessages];
                     }

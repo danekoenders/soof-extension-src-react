@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import ProductCard from "../tools/ProductCard";
 import type { ProductMeta } from "../../types/product";
 import OptionsList from "./OptionsList";
 import { marked } from "marked";
@@ -49,7 +48,7 @@ export default function BotMessage({
   isError = false,
   type = "normal",
   order,
-  productMeta,
+  // productMeta is no longer rendered here - shown in Sources component instead
   optionsLayout = "default",
   guardrailData,
 }: BotMessageProps) {
@@ -151,7 +150,7 @@ export default function BotMessage({
 
         {/* Render formatted markdown content (both during streaming and after) */}
         {formattedHtml && (
-          <div className={`px-3 py-3 w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black guardrail-transition ${
+          <div className={`w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black guardrail-transition ${
             isError ? 'border-red-400 bg-red-50' : 'border-gray-200'
           } ${isTransitioning ? 'guardrail-fade-out' : 'guardrail-fade-in'}`}>
             {formatText(formattedHtml)}
@@ -195,10 +194,7 @@ export default function BotMessage({
           </div>
         )}
 
-        {/* Render product card if meta is available */}
-        {type === "product" && productMeta && (
-          <ProductCard product={productMeta} />
-        )}
+        {/* Product cards are now rendered in the Sources component above the input */}
 
         {/* Render options if they exist - only show when not loading */}
         {!loading && (

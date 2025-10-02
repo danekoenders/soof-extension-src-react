@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
 import { SkeletonMessages } from "./SkeletonMessage";
@@ -38,45 +38,75 @@ interface MessagesProps {
   isLoadingThread?: boolean;
 }
 
-export default function Messages({ messages, onOptionSelect, isLoadingThread = false }: MessagesProps) {
+export interface MessagesRef {
+  scrollToMessage: (messageId: string) => void;
+}
+
+const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSelect, isLoadingThread = false }, ref) => {
   const el = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [messages]);
 
-  const renderMessage = (message: Message, index: number) => {
-    if (message.role === "user") {
-      return (
-        <UserMessage key={message.id ?? index} text={message.content || ""} />
-      );
-    } else if (
-      message.role === "assistant" ||
-      message.role === "assistant-error" ||
-      message.role === "assistant-loading"
-    ) {
-      return (
-        <BotMessage
-          key={message.id ?? index}
-          text={message.content || ""}
-          loading={message.role === "assistant-loading" || !!message.loading}
-          options={message.options}
-          onOptionClick={message.onOptionClick || onOptionSelect}
-          isError={message.role === "assistant-error"}
-          type={message.type}
-          order={message.order}
-          productMeta={message.productMeta}
-          optionsLayout={message.isWelcome ? "horizontal-scroll" : undefined}
-          guardrailData={message.guardrailData}
-        />
-      );
-    }
+  // Expose scrollToMessage method to parent
+  useImperativeHandle(ref, () => ({
+    scrollToMessage: (messageId: string) => {
+      const messageEl = messageRefs.current.get(messageId);
+      if (messageEl) {
+        messageEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    },
+  }));
 
-    return null;
+  const renderMessage = (message: Message, index: number) => {
+    const messageId = message.id ?? String(index);
+    
+    const messageContent = (() => {
+      if (message.role === "user") {
+        return <UserMessage text={message.content || ""} />;
+      } else if (
+        message.role === "assistant" ||
+        message.role === "assistant-error" ||
+        message.role === "assistant-loading"
+      ) {
+        return (
+          <BotMessage
+            text={message.content || ""}
+            loading={message.role === "assistant-loading" || !!message.loading}
+            options={message.options}
+            onOptionClick={message.onOptionClick || onOptionSelect}
+            isError={message.role === "assistant-error"}
+            type={message.type}
+            order={message.order}
+            productMeta={message.productMeta}
+            optionsLayout={message.isWelcome ? "horizontal-scroll" : undefined}
+            guardrailData={message.guardrailData}
+          />
+        );
+      }
+      return null;
+    })();
+
+    if (!messageContent) return null;
+
+    return (
+      <div
+        key={messageId}
+        ref={(el) => {
+          if (el && message.id) {
+            messageRefs.current.set(message.id, el);
+          }
+        }}
+      >
+        {messageContent}
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col flex-grow gap-2.5 overflow-y-auto px-4 py-3.5">
+    <div className="flex flex-col flex-grow overflow-y-auto px-4 pt-4 gap-2">
       {isLoadingThread ? (
         <SkeletonMessages />
       ) : (
@@ -85,4 +115,8 @@ export default function Messages({ messages, onOptionSelect, isLoadingThread = f
       <div id="el" ref={el} className="h-2.5" />
     </div>
   );
-}
+});
+
+Messages.displayName = "Messages";
+
+export default Messages;

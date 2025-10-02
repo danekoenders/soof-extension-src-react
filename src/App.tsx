@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 
 import Header from "./components/Header";
-import Messages from "./components/messages/Messages";
+import Messages, { type MessagesRef } from "./components/messages/Messages";
 import Input from "./components/Input";
+import Sources, { type SourceGroup } from "./components/Sources";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
 import { useCache } from "./hooks/useCache";
@@ -34,6 +35,7 @@ export interface Message {
   type: "normal" | "product";
   content?: string;
   productMeta?: any;
+  productGroupId?: string;
   options?: { label: string; value: string }[];
   isWelcome?: boolean;
   loading?: boolean;
@@ -68,6 +70,9 @@ export default function App() {
   const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
 
   const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
+
+  // Ref for Messages component to enable scrolling to specific messages
+  const messagesRef = useRef<MessagesRef>(null);
 
   // stable callbacks to prevent unnecessary re-renders
   const handleRegisterSendFn = useCallback((fn: (text: string) => void) => {
@@ -198,6 +203,7 @@ export default function App() {
 
       if (m.type === "ai") {
         const productMeta = (m as any)._productMeta;
+        const productGroupId = (m as any)._productGroupId;
         const content = (m.content ?? "") as string;
         if (!productMeta && !content.trim()) {
           return [];
@@ -210,6 +216,7 @@ export default function App() {
             type: productMeta ? "product" : "normal",
             content: content,
             productMeta: productMeta,
+            productGroupId: productGroupId,
             loading: !done,
             guardrailData: (m as any)._guardrailData,
           },
@@ -305,14 +312,17 @@ export default function App() {
                   Array.isArray(b.data?.products) ? b.data.products : []
                 );
                 if (products.length > 0) {
+                  const groupId = `hydrated-group-${Date.now()}`;
                   const productMessages = products
                     .map((p: any) => normalizeProduct(p))
                     .filter(Boolean)
-                    .map((pm) => ({
+                    .map((pm, idx: number) => ({
+                      id: `${groupId}-${idx}`,
                       type: "ai",
                       content: "",
                       _stream_done: true,
                       _productMeta: pm,
+                      _productGroupId: groupId,
                     }));
                   out.push(...productMessages);
                 }
@@ -395,6 +405,37 @@ export default function App() {
     return base;
   }, [mappedMessages, chatStarted, isLoadingThread, serveData]);
 
+  /* -------------------- Extract source messages grouped by productGroupId -------------------- */
+  const sourceMessages = useMemo((): SourceGroup[] => {
+    const messagesWithProducts = displayMessages.filter(
+      (msg) => msg.productMeta && msg.id && msg.productGroupId
+    );
+
+    // Group by productGroupId
+    const grouped = messagesWithProducts.reduce((acc, msg) => {
+      const groupId = msg.productGroupId!;
+      if (!acc[groupId]) {
+        acc[groupId] = [];
+      }
+      acc[groupId].push({
+        id: msg.id!,
+        productMeta: msg.productMeta!,
+      });
+      return acc;
+    }, {} as Record<string, Array<{ id: string; productMeta: any }>>);
+
+    // Convert to array of groups
+    return Object.entries(grouped).map(([groupId, products]) => ({
+      groupId,
+      products,
+    }));
+  }, [displayMessages]);
+
+  /* -------------------- Handle source navigation -------------------- */
+  const handleSourceNavigate = useCallback((messageId: string) => {
+    messagesRef.current?.scrollToMessage(messageId);
+  }, []);
+
   /* -------------------------- New chat handler -------------------------- */
   const handleNewChat = () => {
     // Drop only the thread so next send creates a new one
@@ -426,7 +467,12 @@ export default function App() {
         onRestartChat={handleNewChat}
       />
 
-      <Messages messages={displayMessages} onOptionSelect={handleSend} isLoadingThread={isLoadingThread} />
+      <Messages 
+        ref={messagesRef}
+        messages={displayMessages} 
+        onOptionSelect={handleSend} 
+        isLoadingThread={isLoadingThread} 
+      />
 
       {/* Disclaimer shown only when chat not started and not loading thread */}
       {!chatStarted && !isLoadingThread && (
@@ -453,11 +499,17 @@ export default function App() {
         </div>
       )}
 
-      <div className="p-4">
+      <div className="p-4 pt-1">
         {/* Connecting indicator while fetching session */}
         {isSessionLoading && (
           <span className="text-sm text-gray-500">Connecting…</span>
         )}
+
+        {/* Sources component - displays frontendData components in a carousel */}
+        <Sources 
+          messages={sourceMessages} 
+          onNavigate={handleSourceNavigate} 
+        />
 
         <Input
           onSend={handleSend}

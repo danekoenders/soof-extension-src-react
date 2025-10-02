@@ -78,6 +78,10 @@ const OptionsList: React.FC<OptionsListProps> = ({
       scrollWidth: 1,
       clientWidth: 1,
     });
+    const isDraggingRef = useRef(false);
+    const startXRef = useRef(0);
+    const scrollLeftRef = useRef(0);
+    const dragDistanceRef = useRef(0);
 
     const updateScroll = useCallback(() => {
       const el = scrollRef.current;
@@ -93,13 +97,67 @@ const OptionsList: React.FC<OptionsListProps> = ({
       const el = scrollRef.current;
       if (!el) return;
       updateScroll();
-      el.addEventListener("scroll", updateScroll);
+      el.addEventListener("scroll", updateScroll, { passive: true });
       window.addEventListener("resize", updateScroll);
       return () => {
         el.removeEventListener("scroll", updateScroll);
         window.removeEventListener("resize", updateScroll);
       };
     }, [updateScroll]);
+
+    // Drag to scroll functionality
+    useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      const onMouseDown = (e: MouseEvent) => {
+        isDraggingRef.current = true;
+        startXRef.current = e.pageX - el.offsetLeft;
+        scrollLeftRef.current = el.scrollLeft;
+        dragDistanceRef.current = 0;
+        el.style.cursor = 'grabbing';
+        el.style.userSelect = 'none';
+      };
+
+      const onMouseMove = (e: MouseEvent) => {
+        if (!isDraggingRef.current) return;
+        e.preventDefault();
+        const x = e.pageX - el.offsetLeft;
+        const walk = (x - startXRef.current) * 2;
+        el.scrollLeft = scrollLeftRef.current - walk;
+        dragDistanceRef.current += Math.abs(walk);
+      };
+
+      const onMouseUpOrLeave = () => {
+        if (isDraggingRef.current) {
+          isDraggingRef.current = false;
+          el.style.cursor = 'grab';
+          el.style.userSelect = '';
+        }
+      };
+
+      // Prevent clicks on children if dragged
+      const onClick = (e: MouseEvent) => {
+        if (dragDistanceRef.current > 5) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+
+      el.addEventListener('mousedown', onMouseDown);
+      el.addEventListener('mousemove', onMouseMove);
+      el.addEventListener('mouseup', onMouseUpOrLeave);
+      el.addEventListener('mouseleave', onMouseUpOrLeave);
+      el.addEventListener('click', onClick, true); // Use capture phase
+
+      return () => {
+        el.removeEventListener('mousedown', onMouseDown);
+        el.removeEventListener('mousemove', onMouseMove);
+        el.removeEventListener('mouseup', onMouseUpOrLeave);
+        el.removeEventListener('mouseleave', onMouseUpOrLeave);
+        el.removeEventListener('click', onClick, true);
+      };
+    }, []);
 
     // Calculate thumb width and position
     const { scrollLeft, scrollWidth, clientWidth } = scrollState;
@@ -109,7 +167,7 @@ const OptionsList: React.FC<OptionsListProps> = ({
     return (
       <div className="relative pb-3 w-full min-w-0 box-border overflow-x-hidden">
         <div
-          className="flex flex-row flex-nowrap overflow-x-auto gap-2 pb-0 w-full min-w-0 box-border pr-3.5 scrollbar-none"
+          className="flex flex-row flex-nowrap overflow-x-auto gap-2 pb-0 w-full min-w-0 box-border pr-3.5 scrollbar-none cursor-grab"
           ref={scrollRef}
           style={{ overflowX: "auto" }}
         >
@@ -124,9 +182,9 @@ const OptionsList: React.FC<OptionsListProps> = ({
             </button>
           ))}
         </div>
-        <div className="w-full h-1.5 bg-transparent rounded-sm mt-1 mb-0.5 pointer-events-none relative overflow-hidden max-w-[calc(100%-14px)]">
+        <div className="w-full h-1.5 bg-gray-200 rounded-sm mt-1 mb-0.5 relative overflow-hidden max-w-[calc(100%-14px)]">
           <div
-            className="absolute top-0 left-0 h-full bg-gray-400 rounded-sm transition-all duration-100 pointer-events-none"
+            className="absolute top-0 left-0 h-full bg-gray-400 rounded-sm transition-all duration-100"
             style={{
               width: `${thumbWidth}%`,
               left: `${thumbLeft}%`,
