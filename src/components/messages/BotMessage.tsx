@@ -151,7 +151,7 @@ export default function BotMessage({
 
         {/* Render formatted markdown content (both during streaming and after) */}
         {formattedHtml && (
-          <div className={`px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border max-w-[90%] text-black guardrail-transition ${
+          <div className={`px-3 py-3 w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black guardrail-transition ${
             isError ? 'border-red-400 bg-red-50' : 'border-gray-200'
           } ${isTransitioning ? 'guardrail-fade-out' : 'guardrail-fade-in'}`}>
             {formatText(formattedHtml)}

@@ -418,7 +418,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[70vh] rounded-2xl overflow-hidden overscroll-contain">
+    <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[70vh] rounded-2xl overflow-hidden overscroll-contain">
       <Header
         shopName={serveData.name}
         chatbotName={serveData.settings.agentName}

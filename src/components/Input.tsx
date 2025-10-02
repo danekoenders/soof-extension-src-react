@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 
 interface InputProps {
@@ -17,10 +17,30 @@ interface InputProps {
   isMobile: boolean;
 }
 
-export default function Input({ onSend, disabled, theme, isMobile }: InputProps) {
+export default function Input({
+  onSend,
+  disabled,
+  theme,
+  isMobile,
+}: InputProps) {
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const maxHeight = isMobile ? 96 : 88; // 6rem = 96px, 5.5rem = 88px
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${newHeight}px`;
+    }
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [text, isMobile]);
+
+  const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
 
@@ -35,19 +55,37 @@ export default function Input({ onSend, disabled, theme, isMobile }: InputProps)
 
   return (
     <>
-      <form onSubmit={handleSend} className="flex gap-1.5 border border-gray-300 rounded-xl">
-        <input
-          type="text"
+      <form
+        onSubmit={handleSend}
+        className={`flex items-center gap-1.5 p-2 border border-gray-300 rounded-xl transition-all ${
+          isMobile ? "max-h-[8rem]" : "max-h-[7.5rem]"
+        }`}
+      >
+        <textarea
+          ref={textareaRef}
+          rows={1}
           onChange={handleInputChange}
           value={text}
           disabled={disabled}
           placeholder="Waar ben je naar op zoek?"
-          className={`flex-grow px-2.5 py-1.5 shadow-sm ${isMobile ? 'text-base' : 'text-[1em]'} bg-white text-black focus:outline-none focus:border-blue-600 disabled:bg-gray-100`}
+          name="chat-input"
+          style={{ resize: 'none' }}
+          className={`w-full shadow-sm resize-none overflow-y-auto scrollbar-subtle ${
+            isMobile ? "text-base max-h-[6rem]" : "text-[1em] max-h-[5.5rem]"
+          } bg-white text-black focus:outline-none focus:border-blue-600 disabled:bg-gray-100 leading-[1.375]`}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend(e as any);
+            }
+          }}
         />
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={disabled || !text.trim()}
-          className={`flex items-center justify-center w-14 h-14 px-1.5 py-3 border-none rounded-2xl cursor-pointer transition-colors disabled:cursor-not-allowed ${disabled ? 'bg-gray-100' : 'bg-blue-600 text-white'}`}
+          className={`flex items-center justify-center self-end p-2 border-none rounded-md cursor-pointer transition-colors disabled:cursor-not-allowed ${
+            disabled ? "bg-gray-100" : "bg-blue-600 text-white"
+          }`}
         >
           <svg
             version="1.1"

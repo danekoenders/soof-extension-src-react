@@ -75,6 +75,29 @@
   display: none;
 }
 
+/* Subtle scrollbar styling */
+.scrollbar-subtle {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #d1d5db transparent; /* Firefox - thumb color and track color */
+}
+
+.scrollbar-subtle::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-subtle::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-subtle::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+}
+
+.scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
 /* Guardrail animations */
 @keyframes slideInFromTop {
   from {
