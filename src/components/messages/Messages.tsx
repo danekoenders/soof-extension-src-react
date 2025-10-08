@@ -17,7 +17,7 @@ interface Option {
 
 interface Message {
   id?: string;
-  role: 'user' | 'assistant' | 'assistant-loading' | 'assistant-error' | 'phase';
+  role: 'user' | 'assistant' | 'assistant-error' | 'phase';
   type: 'normal' | 'orderTracking' | 'product';
   content?: string;
   loading?: boolean;
@@ -78,13 +78,12 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
         );
       } else if (
         message.role === "assistant" ||
-        message.role === "assistant-error" ||
-        message.role === "assistant-loading"
+        message.role === "assistant-error"
       ) {
         return (
           <BotMessage
             text={message.content || ""}
-            loading={message.role === "assistant-loading" || !!message.loading}
+            loading={!!message.loading}
             options={message.options}
             onOptionClick={message.onOptionClick || onOptionSelect}
             isError={message.role === "assistant-error"}

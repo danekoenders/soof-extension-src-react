@@ -27,13 +27,10 @@ import indexCss from "./index.css?inline";
   styleEl.textContent = indexCss;
   shadowRoot.appendChild(styleEl);
 
-  // Build overlay and modal container using Tailwind classes
+  // Build overlay using Tailwind classes
   const overlay = document.createElement('div');
   overlay.setAttribute('data-soof-overlay', '');
   overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-start pt-[10vh] z-[999999]';
-
-  const modal = document.createElement('div');
-  modal.className = 'w-full max-w-[640px] mx-4';
 
   // Utility: close overlay
   const closeOverlay = () => {
@@ -45,18 +42,12 @@ import indexCss from "./index.css?inline";
     }
   };
 
-  // Ensure mount point fills modal
-  (existingMountPoint as HTMLElement).style.width = '100%';
-  (existingMountPoint as HTMLElement).style.height = '100%';
+  // Style the mount point directly
+  existingMountPoint.className = 'w-full max-w-[640px] mx-4 animate-slide-in-chat';
 
-  // Hide original container if present to avoid duplicate layout
-  const orig = shadowRoot.querySelector('.soof-chat-window') as HTMLElement | null;
-  if (orig) orig.style.display = 'none';
-
-  modal.appendChild(existingMountPoint);
-  overlay.appendChild(modal);
+  overlay.appendChild(existingMountPoint);
   
-  // Close when clicking on the dimmed background (but not when clicking inside the modal)
+  // Close when clicking on the dimmed background (but not when clicking inside the chat)
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeOverlay();
   });

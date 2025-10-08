@@ -9,6 +9,7 @@ import StreamingChat from "./components/StreamingChat";
 import { useCache } from "./hooks/useCache";
 import { normalizeProduct } from "./utils/productTransforms";
 import type { GuardrailData } from "./types/guardrail";
+import type { ProductMeta } from "./types/product";
 // import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
@@ -31,7 +32,7 @@ interface ServeData {
 // Minimal message type for Messages component
 export interface Message {
   id?: string;
-  role: "user" | "assistant" | "assistant-loading" | "phase";
+  role: "user" | "assistant" | "assistant-error" | "phase";
   type: "normal" | "product";
   content?: string;
   productMeta?: any;
@@ -185,7 +186,8 @@ export default function App() {
       const id = (m as any).id as string | undefined;
 
       // Handle phase indicators (thinking, function calls, etc.)
-      if (m.type === "phase" || (m as any)._phase) {
+      // All placeholders are now phase indicators
+      if (m.type === "phase" || (m as any)._phase || (m as any)._isPlaceholder) {
         return [
           {
             id,
@@ -193,19 +195,6 @@ export default function App() {
             type: "normal",
             phase: (m as any)._phase || "thinking",
             phaseMessage: (m as any)._phaseMessage || "Working…",
-          },
-        ];
-      }
-
-      // Detect our custom loading placeholder messages injected by StreamingChat
-      if ((m as any)._isPlaceholder) {
-        return [
-          {
-            id,
-            role: "assistant-loading",
-            type: "normal",
-            content: (m.content ?? "") as string,
-            loading: true,
           },
         ];
       }
@@ -220,6 +209,8 @@ export default function App() {
         const productMeta = (m as any)._productMeta;
         const productGroupId = (m as any)._productGroupId;
         const content = (m.content ?? "") as string;
+        const isError = (m as any)._isError;
+        
         if (!productMeta && !content.trim()) {
           return [];
         }
@@ -227,7 +218,7 @@ export default function App() {
         return [
           {
             id,
-            role: "assistant",
+            role: isError ? "assistant-error" : "assistant",
             type: productMeta ? "product" : "normal",
             content: content,
             productMeta: productMeta,
@@ -297,7 +288,7 @@ export default function App() {
         };
 
         const normalized = history
-          .flatMap((item: any) => {
+          .flatMap((item: any, historyIndex: number) => {
             const role = item?.role;
             const type = item?.type;
 
@@ -317,29 +308,64 @@ export default function App() {
                 out.push({ type: "ai", content, _stream_done: true });
               }
 
-              // Extract stored frontend data blocks and append product-card messages
+              // Extract stored frontend data blocks and append frontend data messages
               try {
                 const blocks = Array.isArray(item?.content) ? item.content : [];
                 const frontendBlocks = blocks.filter(
                   (b: any) => b?.type === "frontend_data" && b?.data
                 );
-                const products: any[] = frontendBlocks.flatMap((b: any) =>
-                  Array.isArray(b.data?.products) ? b.data.products : []
-                );
-                if (products.length > 0) {
-                  const groupId = `hydrated-group-${Date.now()}`;
-                  const productMessages = products
-                    .map((p: any) => normalizeProduct(p))
-                    .filter(Boolean)
-                    .map((pm, idx: number) => ({
-                      id: `${groupId}-${idx}`,
-                      type: "ai",
-                      content: "",
-                      _stream_done: true,
-                      _productMeta: pm,
-                      _productGroupId: groupId,
-                    }));
-                  out.push(...productMessages);
+                
+                for (const block of frontendBlocks) {
+                  // Process entries in new format: { entries: [{ type, label, data }] }
+                  if (block.data?.entries && Array.isArray(block.data.entries)) {
+                    for (const entry of block.data.entries) {
+                      if (!entry.type || !Array.isArray(entry.data) || entry.data.length === 0) continue;
+                      
+                      const entryType = entry.type;
+                      const entryLabel = entry.label; // Use backend label (optional)
+                      const groupId = `hydrated-${entryType}-${historyIndex}-${Date.now()}`;
+                      
+                      // For now, only handle products type (others can be added later)
+                      if (entryType === "products") {
+                        const productMessages = entry.data
+                          .map((p: any) => normalizeProduct(p))
+                          .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
+                          .map((pm: ProductMeta, idx: number) => ({
+                            id: `${groupId}-${idx}`,
+                            type: "ai",
+                            content: "",
+                            _stream_done: true,
+                            _productMeta: pm,
+                            _productGroupId: groupId,
+                            _productGroupLabel: entryLabel,
+                            _productGroupType: entryType,
+                            _validationComplete: true, // Hydrated data is already validated
+                          }));
+                        out.push(...productMessages);
+                      }
+                      // Future: handle other types like "orders", "cart", "customer"
+                      // else if (entryType === "orders") { ... }
+                    }
+                  }
+                  // Fallback: Old format { products: [...] } for backward compatibility
+                  else if (Array.isArray(block.data?.products) && block.data.products.length > 0) {
+                    const groupId = `hydrated-products-${historyIndex}-${Date.now()}`;
+                    const productMessages = block.data.products
+                      .map((p: any) => normalizeProduct(p))
+                      .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
+                      .map((pm: ProductMeta, idx: number) => ({
+                        id: `${groupId}-${idx}`,
+                        type: "ai",
+                        content: "",
+                        _stream_done: true,
+                        _productMeta: pm,
+                        _productGroupId: groupId,
+                        _productGroupLabel: undefined, // No label in legacy format
+                        _productGroupType: "products",
+                        _validationComplete: true,
+                      }));
+                    out.push(...productMessages);
+                  }
                 }
               } catch (_) {
                 // ignore malformed frontend data
@@ -422,29 +448,52 @@ export default function App() {
 
   /* -------------------- Extract source messages grouped by productGroupId -------------------- */
   const sourceMessages = useMemo((): SourceGroup[] => {
+    // Filter messages that have products AND are validated
     const messagesWithProducts = displayMessages.filter(
       (msg) => msg.productMeta && msg.id && msg.productGroupId
     );
 
-    // Group by productGroupId
+    // Group by productGroupId first
     const grouped = messagesWithProducts.reduce((acc, msg) => {
       const groupId = msg.productGroupId!;
       if (!acc[groupId]) {
-        acc[groupId] = [];
+        acc[groupId] = {
+          products: [],
+          isValidated: false,
+          label: undefined,
+          type: undefined,
+        };
       }
-      acc[groupId].push({
+      acc[groupId].products.push({
         id: msg.id!,
         productMeta: msg.productMeta!,
       });
+      // Check if this product has validation complete flag, label, and type from the raw messages
+      const rawMsg = messages.find((m: any) => m._productGroupId === groupId);
+      if (rawMsg) {
+        if ((rawMsg as any)._validationComplete) {
+          acc[groupId].isValidated = true;
+        }
+        if ((rawMsg as any)._productGroupLabel) {
+          acc[groupId].label = (rawMsg as any)._productGroupLabel;
+        }
+        if ((rawMsg as any)._productGroupType) {
+          acc[groupId].type = (rawMsg as any)._productGroupType;
+        }
+      }
       return acc;
-    }, {} as Record<string, Array<{ id: string; productMeta: any }>>);
+    }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; isValidated: boolean; label?: string; type?: string }>);
 
-    // Convert to array of groups
-    return Object.entries(grouped).map(([groupId, products]) => ({
-      groupId,
-      products,
-    }));
-  }, [displayMessages]);
+    // Only include validated groups
+    return Object.entries(grouped)
+      .filter(([, group]) => group.isValidated)
+      .map(([groupId, group]) => ({
+        groupId,
+        products: group.products,
+        label: group.label,
+        type: group.type,
+      }));
+  }, [displayMessages, messages]);
 
   /* -------------------- Handle source navigation -------------------- */
   const handleSourceNavigate = useCallback((messageId: string) => {
@@ -465,29 +514,26 @@ export default function App() {
   if (isServeLoading || !serveData) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="flex items-center space-x-2">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-          <span>Loading configuration…</span>
-        </div>
+        <div className="animate-spinner rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
       </div>
     );
   }
 
   return (
     <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[70vh] rounded-2xl overflow-hidden overscroll-contain">
-      <Header
-        shopName={serveData.name}
-        chatbotName={serveData.settings.agentName}
-        theme={serveData.settings.theme}
-        onRestartChat={handleNewChat}
-      />
+        <Header
+          shopName={serveData.name}
+          chatbotName={serveData.settings.agentName}
+          theme={serveData.settings.theme}
+          onRestartChat={handleNewChat}
+        />
 
-      <Messages 
-        ref={messagesRef}
-        messages={displayMessages} 
-        onOptionSelect={handleSend} 
-        isLoadingThread={isLoadingThread} 
-      />
+        <Messages 
+          ref={messagesRef}
+          messages={displayMessages} 
+          onOptionSelect={handleSend} 
+          isLoadingThread={isLoadingThread} 
+        />
 
       {/* Disclaimer shown only when chat not started and not loading thread */}
       {!chatStarted && !isLoadingThread && (

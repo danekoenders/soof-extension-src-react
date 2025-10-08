@@ -151,33 +151,6 @@ export default function BotMessage({
             isError ? 'border-red-400 bg-red-50' : 'border-gray-200'
           } ${isRegenerating ? 'regenerating-text' : ''}`}>
             {formatText(formattedHtml)}
-            
-            {/* Show typing indicator while streaming */}
-            {loading && (
-              <div className="flex items-center mt-1">
-                <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-200"></span>
-                <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-400"></span>
-                <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-600"></span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Show loading placeholder only when there's no content yet */}
-        {!formattedHtml && loading && (
-          <div className={`px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border max-w-[90%] text-black flex flex-row items-center justify-center ${
-            isError ? 'border-red-400 bg-red-50' : 'border-gray-200'
-          }`}>
-            {text && text.trim() && (
-              <p className="mr-2">
-                {text}
-              </p>
-            )}
-            <div className="flex items-center -mb-1.5">
-              <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-200"></span>
-              <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-400"></span>
-              <span className="inline-block w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-pulse delay-600"></span>
-            </div>
           </div>
         )}
 

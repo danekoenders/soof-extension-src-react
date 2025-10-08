@@ -41,61 +41,76 @@ export default function ProductCard({ product }: Props) {
   const cardHref = variantId ? `${host}/variants/${variantId}` : undefined;
 
   return (
-    <div className="px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border border-gray-200 bg-blue-50 max-w-[90%] text-black">
-      <a
-        href={cardHref}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="no-underline text-inherit flex items-center gap-3"
-      >
-        {displayImage && (
-        <img
-            src={displayImage}
-            alt={displayTitle}
-            className="w-20 h-20 object-cover rounded-md"
-        />
-      )}
-      <div className="flex flex-col gap-1">
-        <strong className="text-base">{title}</strong>
-          {variants && variants.length > 0 && (
-            <span className="text-xs text-gray-600">{displayTitle}</span>
+    <div className="p-2.5 w-full rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
+      <div className="flex gap-2.5">
+        {/* Image on left */}
+        <a
+          href={cardHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="no-underline flex items-center"
+        >
+          {displayImage && (
+            <img
+              src={displayImage}
+              alt={displayTitle}
+              className="w-16 h-16 object-contain rounded"
+            />
           )}
-        {priceText && <span className="text-sm">{priceText}</span>}
-      </div>
-      </a>
-      {/* Variant switcher */}
-      {variants && variants.length > 1 && (
-        <div className="mt-2 flex gap-2">
-          {variants.map((variant, idx) => {
-            return (
-              <a
-                key={variant.variant_id}
-                rel="noopener noreferrer"
-                className="no-underline"
-                onClick={e => {
-                  setSelectedVariantIdx(idx);
-                  if (!variant.available) e.preventDefault();
-                }}
-              >
-                <button
-                  type="button"
-                  className={`px-2.5 py-1 rounded text-gray-800 cursor-pointer transition-all ${
-                    idx === selectedVariantIdx 
-                      ? 'border-2 border-blue-600 bg-blue-50 font-bold' 
-                      : 'border border-gray-300 bg-gray-50 font-normal'
-                  } ${
-                    variant.available ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
-                  }`}
-                  disabled={!variant.available}
-                  title={variant.available ? undefined : "Not available"}
-                >
-                  {variant.title}
-                </button>
-              </a>
-            );
-          })}
+        </a>
+        
+        {/* Content on right */}
+        <div className="flex-1 min-w-0 flex flex-col justify-between">
+          <a
+            href={cardHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="no-underline text-inherit"
+          >
+            <div className="flex flex-col gap-0.5">
+              <strong className="text-xs leading-tight line-clamp-1">{title}</strong>
+              {variants && variants.length > 0 && (
+                <span className="text-[10px] text-gray-500 line-clamp-1">{displayTitle}</span>
+              )}
+              {priceText && <span className="text-xs font-semibold text-blue-600 mt-0.5">{priceText}</span>}
+            </div>
+          </a>
+          
+          {/* Variant switcher - compact horizontal */}
+          {variants && variants.length > 1 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {variants.map((variant, idx) => {
+                return (
+                  <a
+                    key={variant.variant_id}
+                    rel="noopener noreferrer"
+                    className="no-underline"
+                    onClick={e => {
+                      setSelectedVariantIdx(idx);
+                      if (!variant.available) e.preventDefault();
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-all ${
+                        idx === selectedVariantIdx 
+                          ? 'border border-blue-600 bg-blue-50 text-blue-700 font-semibold' 
+                          : 'border border-gray-200 bg-white text-gray-700'
+                      } ${
+                        variant.available ? 'opacity-100' : 'opacity-40 cursor-not-allowed'
+                      }`}
+                      disabled={!variant.available}
+                      title={variant.available ? undefined : "Not available"}
+                    >
+                      {variant.title}
+                    </button>
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -16,10 +16,14 @@ type SimpleMessage = {
   _stream_done?: boolean;
   _guardrailData?: GuardrailData;
   _productMeta?: ProductMeta; // Added for product messages
-  _productGroupId?: string; // Added for product messages
+  _productGroupId?: string; // Group ID for frontend data entries
+  _productGroupLabel?: string; // Label for the group (e.g. "Products", "Recent Orders")
+  _productGroupType?: string; // Type of the group (e.g. "products", "orders", "cart")
   _isFrontendData?: boolean; // Flag for any message generated from frontendData
   _phase?: string; // Phase type: "thinking", "function", etc.
   _phaseMessage?: string; // Optional custom message for the phase
+  _isError?: boolean; // Flag for error messages
+  _validationComplete?: boolean; // Flag indicating validation is complete
 };
 
 interface StreamingChatProps {
@@ -46,6 +50,7 @@ export default function StreamingChat({
   const messagesRef = useRef<SimpleMessage[]>([]);
   const cfgRef = useRef({ apiBase, jwt, localLanguage, threadToken });
   const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
+  const validationCompleteRef = useRef<boolean>(false);
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
@@ -65,6 +70,9 @@ export default function StreamingChat({
   useEffect(() => {
     const sendMessage = async (text: string) => {
       if (!text.trim()) return;
+
+      // Reset validation complete flag for new message
+      validationCompleteRef.current = false;
 
       const generatedId = `local-${Date.now()}-${Math.random()
         .toString(36)
@@ -322,6 +330,22 @@ export default function StreamingChat({
                   onMessages(current);
                   break;
                 }
+                case "validation_complete": {
+                  // Mark that validation is complete - allows showing frontendData
+                  console.log('✅ Validation complete, regenerationNeeded:', event.regenerationNeeded);
+                  validationCompleteRef.current = true;
+                  
+                  // Add marker to the last AI message
+                  const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  const last = current[current.length - 1];
+                  if (last && last.type === "ai") {
+                    last._validationComplete = true;
+                  }
+                  
+                  messagesRef.current = current;
+                  onMessages(current);
+                  break;
+                }
                 case "done": {
                   // finalize last ai message
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
@@ -379,15 +403,53 @@ export default function StreamingChat({
 
                   // Add new frontendData messages from the (potentially regenerated) response
                   try {
-                    const products = Array.isArray(event.frontendData?.products)
-                      ? event.frontendData.products
-                      : [];
-                    if (products.length > 0) {
-                      console.log('  → Adding', products.length, 'new product messages');
-                      const groupId = `product-group-${Date.now()}`;
+                    const isValidated = validationCompleteRef.current;
+                    
+                    // Process entries in new format: { entries: [{ type, label, data }] }
+                    if (event.frontendData?.entries && Array.isArray(event.frontendData.entries)) {
+                      for (const entry of event.frontendData.entries) {
+                        if (!entry.type || !Array.isArray(entry.data) || entry.data.length === 0) continue;
+                        
+                        const entryType = entry.type;
+                        const entryLabel = entry.label; // Use backend label (optional)
+                        const groupId = `${entryType}-group-${Date.now()}`;
+                        
+                        console.log(`  → Processing entry type: ${entryType}, label: ${entryLabel || '(none)'}, count: ${entry.data.length}`);
+                        
+                        // For now, only handle products type (others can be added later)
+                        if (entryType === "products") {
+                          const productMessages = entry.data
+                            .map((p: any) => normalizeProduct(p))
+                            .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
+                            .map((pm: ProductMeta, idx: number) => ({
+                              id: `${groupId}-${idx}`,
+                              type: "ai",
+                              content: "",
+                              _stream_done: true,
+                              _productMeta: pm,
+                              _productGroupId: groupId,
+                              _productGroupLabel: entryLabel,
+                              _productGroupType: entryType,
+                              _isFrontendData: true,
+                              _validationComplete: isValidated,
+                            } as any));
+                          current = [...current, ...productMessages];
+                        }
+                        // Future: handle other types like "orders", "cart", "customer"
+                        // else if (entryType === "orders") { ... }
+                        // else if (entryType === "cart") { ... }
+                      }
+                    }
+                    // Fallback: Old format { products: [...] } for backward compatibility
+                    else if (Array.isArray(event.frontendData?.products) && event.frontendData.products.length > 0) {
+                      const products = event.frontendData.products;
+                      const groupId = `products-group-${Date.now()}`;
+                      
+                      console.log('  → Adding', products.length, 'product messages (legacy format)');
+                      
                       const productMessages = products
                         .map((p: any) => normalizeProduct(p))
-                        .filter(Boolean)
+                        .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
                         .map((pm: ProductMeta, idx: number) => ({
                           id: `${groupId}-${idx}`,
                           type: "ai",
@@ -395,11 +457,15 @@ export default function StreamingChat({
                           _stream_done: true,
                           _productMeta: pm,
                           _productGroupId: groupId,
-                          _isFrontendData: true, // Mark as frontendData message
+                          _productGroupLabel: undefined, // No label in legacy format
+                          _productGroupType: "products",
+                          _isFrontendData: true,
+                          _validationComplete: isValidated,
                         } as any));
                       current = [...current, ...productMessages];
-                      console.log('  → Final message count:', current.length);
                     }
+                    
+                    console.log('  → Final message count:', current.length);
                   } catch (_) {
                     // ignore malformed frontendData
                   }
@@ -408,30 +474,52 @@ export default function StreamingChat({
                   onMessages(current);
                   break;
                 }
+                case "error": {
+                  // Remove any phase indicators
+                  const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  
+                  // Display error message to user
+                  const errorMessage = event.msg || event.error || "Er is een fout opgetreden. Probeer het opnieuw.";
+                  const errMsg: SimpleMessage = { 
+                    type: "ai", 
+                    content: errorMessage,
+                    _stream_done: true,
+                    _isError: true
+                  };
+                  
+                  messagesRef.current = [...current, errMsg];
+                  onMessages(messagesRef.current);
+                  console.error('Backend error:', event);
+                  break;
+                }
                 case "agent_switch":
                 case "tool_step":
                 case "assistant_output_start_internal":
                 case "assistant_output_token":
-                case "error": {
-                  // Optionally surface an error as an assistant message
-                  if (event.msg) {
-                    const current = messagesRef.current.filter((m) => !m._isPlaceholder);
-                    const errMsg: SimpleMessage = { type: "ai", content: String(event.msg), _stream_done: true };
-                    messagesRef.current = [...current, errMsg];
-                    onMessages(messagesRef.current);
-                  }
+                  // Silently ignore these events
                   break;
-                }
                 default:
                   break;
               }
             } catch (err) {
               // skip invalid JSON lines
+              console.warn('Failed to parse stream event:', err);
             }
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error('Stream error:', err);
+        
+        // Remove placeholders and show error message
+        const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+        const errMsg: SimpleMessage = { 
+          type: "ai", 
+          content: "Er is een fout opgetreden bij het verbinden met de server. Probeer het opnieuw.",
+          _stream_done: true,
+          _isError: true
+        };
+        messagesRef.current = [...current, errMsg];
+        onMessages(messagesRef.current);
       }
     };
 

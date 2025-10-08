@@ -10,6 +10,8 @@ export interface ProductItem {
 export interface SourceGroup {
   groupId: string;
   products: ProductItem[];
+  label?: string; // e.g. "Products", "Recommended Products"
+  type?: string; // e.g. "products", "orders", "cart" - for future extensibility
 }
 
 interface SourcesProps {
@@ -23,7 +25,9 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
     return null;
   }
 
-  const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
+  // Start at the last group (most recent)
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(() => Math.max(0, messages.length - 1));
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({
     scrollLeft: 0,
@@ -34,6 +38,45 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
   const dragDistanceRef = useRef(0);
+  const previousMessageCountRef = useRef(messages.length);
+  const hasInitiallyScrolledRef = useRef(false);
+
+  // Auto-navigate to the latest group when new messages are added or on initial load
+  useEffect(() => {
+    const currentCount = messages.length;
+    const previousCount = previousMessageCountRef.current;
+    
+    // If messages were added (not removed), navigate to the last group
+    if (currentCount > previousCount) {
+      const newIndex = currentCount - 1;
+      setCurrentGroupIndex(newIndex);
+      // Scroll to the first product in the new group
+      const lastGroup = messages[newIndex];
+      if (lastGroup?.products?.[0]?.id) {
+        onNavigate?.(lastGroup.products[0].id);
+      }
+    }
+    // If current index is out of bounds, reset to last valid index
+    else if (currentGroupIndex >= currentCount) {
+      setCurrentGroupIndex(Math.max(0, currentCount - 1));
+    }
+    
+    previousMessageCountRef.current = currentCount;
+  }, [messages, currentGroupIndex, onNavigate]);
+
+  // On initial mount, scroll to the current (last) group's first product
+  useEffect(() => {
+    if (!hasInitiallyScrolledRef.current && messages[currentGroupIndex]?.products?.[0]?.id) {
+      hasInitiallyScrolledRef.current = true;
+      // Small delay to ensure the Messages component has rendered
+      setTimeout(() => {
+        const initialGroup = messages[currentGroupIndex];
+        if (initialGroup?.products?.[0]?.id) {
+          onNavigate?.(initialGroup.products[0].id);
+        }
+      }, 100);
+    }
+  }, [messages, currentGroupIndex, onNavigate]);
 
   const currentGroup = messages[currentGroupIndex];
   const hasPreviousGroup = currentGroupIndex > 0;
@@ -143,19 +186,79 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
   const showScrollbar = hasMultipleProducts && scrollWidth > clientWidth;
 
   return (
-    <div className="px-4 pb-2">
-      <div className="flex items-center gap-2">
-        {/* Previous group button - only show if multiple groups */}
-        {hasMultipleGroups && (
+    <div className="pb-2">
+      {/* Collapsible header with navigation */}
+      <div className="px-4 pb-2">
+        <div className="flex items-center justify-between w-full">
+          {/* Left side: Navigation and message indicator */}
+          <div className="flex items-center gap-2">
+            {hasMultipleGroups && (
+              <>
+                <button
+                  onClick={handlePreviousGroup}
+                  disabled={!hasPreviousGroup}
+                  className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center transition-all ${
+                    hasPreviousGroup
+                      ? "text-gray-700 hover:bg-gray-100 cursor-pointer"
+                      : "text-gray-300 cursor-not-allowed"
+                  }`}
+                  aria-label="Previous products"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <span className="text-sm font-medium text-gray-700">
+                  {currentGroupIndex + 1}/{messages.length}
+                </span>
+                <button
+                  onClick={handleNextGroup}
+                  disabled={!hasNextGroup}
+                  className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center transition-all ${
+                    hasNextGroup
+                      ? "text-gray-700 hover:bg-gray-100 cursor-pointer"
+                      : "text-gray-300 cursor-not-allowed"
+                  }`}
+                  aria-label="Next products"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </>
+            )}
+            
+            {/* Label display - show label or default "Bronnen" */}
+            <span className="text-xs text-gray-500 ml-2">
+              {currentGroup.label || "Bronnen"}
+            </span>
+          </div>
+
+          {/* Right side: Collapse toggle */}
           <button
-            onClick={handlePreviousGroup}
-            disabled={!hasPreviousGroup}
-            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-              hasPreviousGroup
-                ? "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
-            aria-label="Previous message"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex items-center justify-center text-gray-700 hover:text-gray-900 transition-colors cursor-pointer"
+            aria-label={isCollapsed ? "Expand products" : "Collapse products"}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -167,39 +270,55 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              className={`transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`}
             >
-              <polyline points="15 18 9 12 15 6" />
+              <polyline points="9 18 15 12 9 6" />
             </svg>
           </button>
-        )}
+        </div>
+      </div>
 
+      {/* Collapsible content */}
+      <div className={`px-4 transition-all duration-300 ease-in-out overflow-hidden ${
+        isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'
+      }`}>
         {/* Product display area */}
         <div className="flex-1 overflow-hidden">
           <div className="flex flex-col gap-1">
-            {/* Counter showing group position */}
-            {hasMultipleGroups && (
-              <div className="text-xs text-gray-500 px-1">
-                Message {currentGroupIndex + 1} of {messages.length}
-                {hasMultipleProducts && ` · ${currentGroup.products.length} products`}
-              </div>
-            )}
-
             {/* Horizontal scrollable products container */}
             <div className="relative w-full min-w-0 box-border">
               <div
                 ref={scrollRef}
-                className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-0 w-full min-w-0 box-border scrollbar-none cursor-grab"
-                style={{ overflowX: "auto" }}
+                className={`flex flex-row gap-3 pb-0 w-full min-w-0 box-border ${
+                  currentGroup.products.length <= 3 ? 'justify-start' : 'flex-nowrap overflow-x-auto scrollbar-none cursor-grab'
+                }`}
+                style={currentGroup.products.length > 3 ? { overflowX: "auto" } : undefined}
               >
-                {currentGroup.products.map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex-none w-[85%] min-w-[280px]"
-                    onClick={() => onNavigate?.(product.id)}
-                  >
-                    <ProductCard product={product.productMeta} />
-                  </div>
-                ))}
+                {currentGroup.products.map((product) => {
+                  // Dynamic width based on number of products
+                  let widthClass = '';
+                  const count = currentGroup.products.length;
+                  
+                  if (count === 1) {
+                    widthClass = 'w-full max-w-[400px]';
+                  } else if (count === 2) {
+                    widthClass = 'w-[calc(50%-6px)]';
+                  } else if (count === 3) {
+                    widthClass = 'w-[calc(33.333%-8px)]';
+                  } else {
+                    widthClass = 'flex-none w-[85%] min-w-[280px]';
+                  }
+                  
+                  return (
+                    <div
+                      key={product.id}
+                      className={widthClass}
+                      onClick={() => onNavigate?.(product.id)}
+                    >
+                      <ProductCard product={product.productMeta} />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Scrollbar indicator */}
@@ -217,34 +336,6 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
             </div>
           </div>
         </div>
-
-        {/* Next group button - only show if multiple groups */}
-        {hasMultipleGroups && (
-          <button
-            onClick={handleNextGroup}
-            disabled={!hasNextGroup}
-            className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-              hasNextGroup
-                ? "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
-            aria-label="Next message"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-        )}
       </div>
     </div>
   );
