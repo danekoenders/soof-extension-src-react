@@ -3,8 +3,7 @@ import type { ProductMeta } from "../../types/product";
 import OptionsList from "./OptionsList";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
-import GuardrailStatus from "../guardrails/GuardrailStatus";
-import ClaimsValidationPanel from "../guardrails/ClaimsValidationPanel";
+import ClaimsCheckBadge from "../guardrails/ClaimsCheckBadge";
 import type { GuardrailData } from "../../types/guardrail";
 
 // Configure marked for better streaming behavior
@@ -65,17 +64,17 @@ export default function BotMessage({
   useEffect(() => {
     const wasRegenerating = isRegenerating;
     const nowRegenerating = guardrailData?.validationPhase === "regenerating";
-    
+
     // Detect when regeneration starts
     if (!wasRegenerating && nowRegenerating) {
       setIsRegenerating(true);
     }
-    
+
     // Detect when regeneration completes
     if (wasRegenerating && !nowRegenerating) {
       setIsRegenerating(false);
     }
-    
+
     // Always update display text - the CSS will handle the animation
     setDisplayText(text);
   }, [text, guardrailData, isRegenerating]);
@@ -84,7 +83,7 @@ export default function BotMessage({
   // This runs on EVERY displayText change, which means every streaming delta
   const formattedHtml = useMemo(() => {
     if (!displayText || !displayText.trim()) return null;
-    
+
     try {
       // marked.parse handles incomplete markdown gracefully (e.g., **bold tex -> renders as literal until closing **)
       const html = marked.parse(displayText);
@@ -98,7 +97,7 @@ export default function BotMessage({
 
   const formatText = (html: string | null) => {
     if (!html) return null;
-    
+
     return (
       <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-a:text-blue-600 hover:prose-a:underline prose-ul:list-disc prose-li:marker:text-gray-400 prose-img:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
         <div dangerouslySetInnerHTML={{ __html: html }} />
@@ -112,7 +111,9 @@ export default function BotMessage({
       <div className="flex flex-col items-start w-full gap-1.5">
         <div className="px-3 py-3 w-fit rounded-[1px_20px_20px_20px] border border-gray-200 bg-blue-50 max-w-[90%] text-black flex items-center justify-between">
           <div>
-            <h4 className="text-lg font-medium m-0">Order #{order.orderNumber}</h4>
+            <h4 className="text-lg font-medium m-0">
+              Order #{order.orderNumber}
+            </h4>
             <p className="text-base m-0">Status: {order.financialStatus}</p>
           </div>
           <a
@@ -138,29 +139,29 @@ export default function BotMessage({
   return (
     <div className="flex flex-col items-start w-full gap-1.5">
       <div className="flex flex-col gap-2.5 max-w-[calc(100%+14px)]">
-        {/* Show guardrail status during validation/regenerating, hide when done */}
-        {guardrailData?.validationPhase && guardrailData.validationPhase !== 'done' && (
-          <GuardrailStatus 
-            phase={guardrailData.validationPhase} 
-          />
-        )}
-
         {/* Render formatted markdown content (both during streaming and after) */}
         {formattedHtml && (
-          <div className={`w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black relative ${
-            isError ? 'border-red-400 bg-red-50' : 'border-gray-200'
-          } ${isRegenerating ? 'regenerating-text' : ''}`}>
+          <div
+            className={`flex flex-col gap-2 w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black relative ${
+              isError ? "border-red-400 bg-red-50" : "border-gray-200"
+            } ${isRegenerating ? "regenerating-text" : ""}`}
+          >
             {formatText(formattedHtml)}
-          </div>
-        )}
 
-        {/* Show claims validation panel only after regeneration is completed */}
-        {guardrailData?.wasRegenerated && guardrailData?.claimsValidation && (
-          <div className="max-w-[90%] w-full">
-            <ClaimsValidationPanel 
-              claimsValidation={guardrailData.claimsValidation}
-              wasRegenerated={guardrailData.wasRegenerated}
-            />
+            {/* Show claims check badge based on validation phase */}
+            {guardrailData && (
+              <div className="px-3 pb-2">
+                <ClaimsCheckBadge
+                  wasRegenerated={guardrailData.wasRegenerated || false}
+                  allowedClaims={guardrailData.claims?.allowedClaims}
+                  violatedClaims={guardrailData.claims?.violatedClaims}
+                  isLoading={
+                    guardrailData.validationPhase === "validating" ||
+                    guardrailData.validationPhase === "regenerating"
+                  }
+                />
+              </div>
+            )}
           </div>
         )}
 

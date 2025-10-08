@@ -1,4 +1,4 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback } from "react";
+import { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
 import PhaseIndicator from "./PhaseIndicator";

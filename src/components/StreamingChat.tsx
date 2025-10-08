@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { normalizeProduct } from "../utils/productTransforms";
 import type { ProductMeta } from "../types/product";
-import type { GuardrailData, ClaimsValidation } from "../types/guardrail";
+import type { GuardrailData } from "../types/guardrail";
 
 type LocalGuardrailState = GuardrailData & {
   hasClearedForRegen?: boolean;
@@ -170,7 +170,6 @@ export default function StreamingChat({
                       guardrailStateRef.current = {
                         wasRegenerated: false,
                         validationPhase: event.phase,
-                        originalResponse: last.content,
                       };
                       
                       last._guardrailData = { ...guardrailStateRef.current };
@@ -203,14 +202,9 @@ export default function StreamingChat({
                         onMessages(messagesRef.current);
                       }
                     } else {
-                      // If no guardrail state exists yet, create one
-                      // Store original response if available, otherwise empty string
-                      const originalResponse = (last && last.type === "ai" && last.content) ? last.content : "";
-                      
                       guardrailStateRef.current = {
                         wasRegenerated: true,
                         validationPhase: event.phase,
-                        originalResponse,
                         hasClearedForRegen: false, // CRITICAL: Set to false so first delta will clear content
                       };
                       console.log('  → Created new guardrail state:', guardrailStateRef.current);
@@ -350,9 +344,13 @@ export default function StreamingChat({
                   // finalize last ai message
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
                   const last = current[current.length - 1];
-                  const wasRegenerated = event.claimsValidation?.wasRegenerated;
+                  
+                  // Extract guardrails data from new backend structure
+                  const guardrails = event.guardrails;
+                  const wasRegenerated = guardrails?.wasRegenerated || false;
                   
                   console.log('✅ Done event:', {
+                    hasGuardrails: !!guardrails,
                     wasRegenerated,
                     currentMessageCount: current.length,
                     lastMessage: last?.content?.substring(0, 50)
@@ -361,27 +359,18 @@ export default function StreamingChat({
                   if (last && last.type === "ai") {
                     last._stream_done = true;
                     
-                    // Handle claims validation data if present
-                    if (event.claimsValidation) {
-                      const claimsValidation: ClaimsValidation = {
-                        isCompliant: event.claimsValidation.isCompliant || false,
-                        violatedClaims: event.claimsValidation.violatedClaims || [],
-                        allowedClaims: event.claimsValidation.allowedClaims || [],
-                        suggestions: event.claimsValidation.suggestions || [],
-                        complianceScore: event.claimsValidation.complianceScore || 0,
-                      };
-                      
+                    // Add guardrail data if present
+                    if (guardrails) {
                       const guardrailData: GuardrailData = {
-                        wasRegenerated: event.claimsValidation.wasRegenerated || false,
-                        originalResponse: event.claimsValidation.originalResponse,
-                        regeneratedResponse: event.claimsValidation.regeneratedResponse,
-                        claimsValidation,
+                        wasRegenerated: guardrails.wasRegenerated,
+                        claims: guardrails.claims,
                         validationPhase: 'done',
                       };
                       
                       last._guardrailData = guardrailData;
-                      guardrailStateRef.current = null; // Reset state
                     }
+                    
+                    guardrailStateRef.current = null; // Reset state
                   }
 
                   // If response was regenerated, remove ALL frontendData messages from the original response

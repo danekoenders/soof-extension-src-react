@@ -257,7 +257,7 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
           {/* Right side: Collapse toggle */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex items-center justify-center text-gray-700 hover:text-gray-900 transition-colors cursor-pointer"
+            className="flex items-center justify-end text-gray-700 hover:text-gray-900 transition-colors cursor-pointer"
             aria-label={isCollapsed ? "Expand products" : "Collapse products"}
           >
             <svg

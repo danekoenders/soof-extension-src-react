@@ -19,6 +19,12 @@ export default function PhaseIndicator({
     return () => clearInterval(interval);
   }, []);
 
+  // Don't display phase indicators for validating and regenerating
+  // These phases are handled by the ClaimsCheckBadge component instead
+  if (phase === "validating" || phase === "regenerating") {
+    return null;
+  }
+
   // Get icon and label based on phase
   const getPhaseDisplay = () => {
     switch (phase) {
@@ -36,20 +42,6 @@ export default function PhaseIndicator({
           label: toolLabel,
           color: "bg-purple-50 border-purple-200",
           dotColor: "bg-purple-500",
-        };
-      case "validating":
-        return {
-          icon: "✓",
-          label: "Validating response",
-          color: "bg-green-50 border-green-200",
-          dotColor: "bg-green-500",
-        };
-      case "regenerating":
-        return {
-          icon: "🔄",
-          label: "Regenerating response",
-          color: "bg-amber-50 border-amber-200",
-          dotColor: "bg-amber-500",
         };
       default:
         return {
@@ -77,10 +69,6 @@ export default function PhaseIndicator({
         <div className="flex items-center gap-1">
           <span className="text-sm font-medium text-gray-700">
             {display.label}
-          </span>
-          {/* Animated dots */}
-          <span className="text-sm font-medium text-gray-500 w-4 inline-block">
-            {dots}
           </span>
         </div>
 

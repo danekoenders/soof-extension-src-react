@@ -7,11 +7,22 @@ export interface ClaimsValidation {
   complianceScore: number;
 }
 
+// Claims data from backend (simpler structure)
+export interface Claims {
+  allowedClaims: string[];
+  violatedClaims: string[];
+}
+
+// Guardrails structure from backend
+export interface Guardrails {
+  name: string;
+  wasRegenerated: boolean;
+  claims: Claims;
+}
+
 // Guardrail data structure
 export interface GuardrailData {
   wasRegenerated: boolean;
-  originalResponse?: string;
-  regeneratedResponse?: string;
-  claimsValidation?: ClaimsValidation;
+  claims?: Claims;
   validationPhase?: 'thinking' | 'validating' | 'regenerating' | 'done';
 }

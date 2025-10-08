@@ -317,6 +317,27 @@ export default function App() {
                 });
               }
 
+              // Extract guardrails metadata and attach to the text message
+              try {
+                const blocks = Array.isArray(item?.content) ? item.content : [];
+                const guardrailsBlock = blocks.find((b: any) => b?.type === "guardrails_metadata");
+                
+                if (guardrailsBlock && out.length > 0) {
+                  // Attach guardrails data to the first AI text message
+                  const textMessage = out[0];
+                  textMessage._guardrailData = {
+                    wasRegenerated: guardrailsBlock.wasRegenerated || false,
+                    claims: guardrailsBlock.claims ? {
+                      allowedClaims: guardrailsBlock.claims.allowedClaims || [],
+                      violatedClaims: guardrailsBlock.claims.violatedClaims || [],
+                    } : undefined,
+                    validationPhase: 'done', // Hydrated data is always done
+                  };
+                }
+              } catch (_) {
+                // ignore malformed guardrails data
+              }
+
               // Extract stored frontend data blocks and append frontend data messages
               try {
                 const blocks = Array.isArray(item?.content) ? item.content : [];
