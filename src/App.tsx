@@ -294,7 +294,11 @@ export default function App() {
 
             if (role === "user") {
               const content = extractText(item?.content);
-              return [{ type: "human", content }];
+              return [{ 
+                id: `hydrated-user-${historyIndex}-${Date.now()}`,
+                type: "human", 
+                content 
+              }];
             }
 
             // Handle assistant messages, including embedded frontend data
@@ -305,7 +309,12 @@ export default function App() {
               let content: string = extractText(item?.content);
               if (!content) content = item?.text || item?.output || "";
               if (content && content.trim()) {
-                out.push({ type: "ai", content, _stream_done: true });
+                out.push({ 
+                  id: `hydrated-text-${historyIndex}-${Date.now()}`,
+                  type: "ai", 
+                  content, 
+                  _stream_done: true 
+                });
               }
 
               // Extract stored frontend data blocks and append frontend data messages
@@ -373,7 +382,12 @@ export default function App() {
 
               // If neither text nor frontend data produced output, still return an empty ai to be safe
               if (out.length === 0) {
-                out.push({ type: "ai", content: "", _stream_done: true });
+                out.push({ 
+                  id: `hydrated-empty-${historyIndex}-${Date.now()}`,
+                  type: "ai", 
+                  content: "", 
+                  _stream_done: true 
+                });
               }
               return out;
             }
@@ -497,8 +511,46 @@ export default function App() {
 
   /* -------------------- Handle source navigation -------------------- */
   const handleSourceNavigate = useCallback((messageId: string) => {
+    // Find the product message to get its group ID
+    const productMessage = displayMessages.find(msg => msg.id === messageId && msg.productMeta);
+    
+    if (productMessage?.productGroupId) {
+      const targetGroupId = productMessage.productGroupId;
+      
+      // Find only the PRODUCT messages in this group (not text messages)
+      const productMessagesInGroup = displayMessages.filter(msg => 
+        msg.productGroupId === targetGroupId && msg.productMeta
+      );
+      
+      // Find the index of the first product in this group
+      const firstProductIndex = displayMessages.findIndex(msg => msg.id === productMessagesInGroup[0]?.id);
+      
+      if (firstProductIndex > 0) {
+        // Look backwards for the AI text message (could have the same groupId or no groupId)
+        for (let i = firstProductIndex - 1; i >= 0; i--) {
+          const prevMsg = displayMessages[i];
+          // Find the first assistant message (text, not product)
+          if (prevMsg.role === 'assistant' && prevMsg.type === 'normal' && prevMsg.id) {
+            messagesRef.current?.scrollToMessage(prevMsg.id);
+            return;
+          }
+          // Stop if we hit a user message (means we've gone too far)
+          if (prevMsg.role === 'user') {
+            break;
+          }
+        }
+      }
+      
+      // Fallback: scroll to the first product in the group
+      if (productMessagesInGroup[0]?.id) {
+        messagesRef.current?.scrollToMessage(productMessagesInGroup[0].id);
+        return;
+      }
+    }
+    
+    // Default: scroll to the provided message ID
     messagesRef.current?.scrollToMessage(messageId);
-  }, []);
+  }, [displayMessages]);
 
   /* -------------------------- New chat handler -------------------------- */
   const handleNewChat = () => {
@@ -560,7 +612,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="p-4 pt-1">
+      <div className="p-4 pt-0">
         {/* Sources component - displays frontendData components in a carousel */}
         <Sources 
           messages={sourceMessages} 

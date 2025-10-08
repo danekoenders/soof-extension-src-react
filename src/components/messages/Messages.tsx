@@ -1,4 +1,4 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
+import { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
 import PhaseIndicator from "./PhaseIndicator";
@@ -48,6 +48,7 @@ export interface MessagesRef {
 const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSelect, isLoadingThread = false }, ref) => {
   const el = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -58,7 +59,26 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
     scrollToMessage: (messageId: string) => {
       const messageEl = messageRefs.current.get(messageId);
       if (messageEl) {
-        messageEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // Highlight the message
+        setHighlightedMessageId(messageId);
+        
+        // Remove highlight after 2 seconds
+        setTimeout(() => {
+          setHighlightedMessageId(null);
+        }, 1000);
+        
+        // Get the scroll container (parent element)
+        const scrollContainer = messageEl.parentElement;
+        if (scrollContainer) {
+          const elementTop = messageEl.offsetTop;
+          const offset = 160; // 32px from top for spacing (accounts for padding)
+          scrollContainer.scrollTo({
+            top: elementTop - offset,
+            behavior: 'smooth'
+          });
+        } else {
+          messageEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
       }
     },
   }));
@@ -100,6 +120,8 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
 
     if (!messageContent) return null;
 
+    const isHighlighted = message.id === highlightedMessageId;
+    
     return (
       <div
         key={messageId}
@@ -108,6 +130,9 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
             messageRefs.current.set(message.id, el);
           }
         }}
+        className={`transition-all duration-200 ${
+          isHighlighted ? 'bg-blue-50/50 -mx-4 px-4 rounded-lg' : ''
+        }`}
       >
         {messageContent}
       </div>

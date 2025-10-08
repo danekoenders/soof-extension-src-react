@@ -69,7 +69,7 @@ export default function ProductCard({ product }: Props) {
           >
             <div className="flex flex-col gap-0.5">
               <strong className="text-xs leading-tight line-clamp-1">{title}</strong>
-              {variants && variants.length > 0 && (
+              {variants && variants.length === 1 && (
                 <span className="text-[10px] text-gray-500 line-clamp-1">{displayTitle}</span>
               )}
               {priceText && <span className="text-xs font-semibold text-blue-600 mt-0.5">{priceText}</span>}

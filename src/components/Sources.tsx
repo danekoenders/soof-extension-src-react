@@ -186,9 +186,9 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
   const showScrollbar = hasMultipleProducts && scrollWidth > clientWidth;
 
   return (
-    <div className="pb-2">
+    <div className="mx-4 pb-2 border-t border-gray-200">
       {/* Collapsible header with navigation */}
-      <div className="px-4 pb-2">
+      <div className="pt-2">
         <div className="flex items-center justify-between w-full">
           {/* Left side: Navigation and message indicator */}
           <div className="flex items-center gap-2">
@@ -279,7 +279,7 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
       </div>
 
       {/* Collapsible content */}
-      <div className={`px-4 transition-all duration-300 ease-in-out overflow-hidden ${
+      <div className={`pt-2 transition-all duration-300 ease-in-out overflow-hidden ${
         isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'
       }`}>
         {/* Product display area */}
