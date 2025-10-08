@@ -1,6 +1,7 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import BotMessage from "./BotMessage";
 import UserMessage from "./UserMessage";
+import PhaseIndicator from "./PhaseIndicator";
 import { SkeletonMessages } from "./SkeletonMessage";
 import type { ProductMeta } from "../../types/product";
 import type { GuardrailData } from "../../types/guardrail";
@@ -16,7 +17,7 @@ interface Option {
 
 interface Message {
   id?: string;
-  role: 'user' | 'assistant' | 'assistant-loading' | 'assistant-error';
+  role: 'user' | 'assistant' | 'assistant-loading' | 'assistant-error' | 'phase';
   type: 'normal' | 'orderTracking' | 'product';
   content?: string;
   loading?: boolean;
@@ -30,6 +31,8 @@ interface Message {
   onOptionClick?: (value: string) => void;
   isWelcome?: boolean;
   guardrailData?: GuardrailData;
+  phase?: string; // Phase type for phase indicators
+  phaseMessage?: string; // Message for phase indicators
 }
 
 interface MessagesProps {
@@ -66,6 +69,13 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
     const messageContent = (() => {
       if (message.role === "user") {
         return <UserMessage text={message.content || ""} />;
+      } else if (message.role === "phase") {
+        return (
+          <PhaseIndicator 
+            phase={message.phase || "thinking"} 
+            message={message.phaseMessage}
+          />
+        );
       } else if (
         message.role === "assistant" ||
         message.role === "assistant-error" ||

@@ -54,7 +54,7 @@ export default function BotMessage({
 }: BotMessageProps) {
   const [showOptions, setShowOptions] = useState(true);
   const [displayText, setDisplayText] = useState(text);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const handleOptionClick = (value: string) => {
     onOptionClick?.(value);
@@ -63,25 +63,22 @@ export default function BotMessage({
 
   // Handle smooth transition when guardrail regeneration occurs
   useEffect(() => {
-    // If we're in regenerating phase and content has changed significantly, trigger transition
-    if (guardrailData?.validationPhase === "regenerating" && 
-        guardrailData.originalResponse && 
-        text !== guardrailData.originalResponse && 
-        text !== displayText &&
-        text.length > 10) { // Only transition when we have substantial new content
-      
-      setIsTransitioning(true);
-      
-      // Fade out current text, then fade in new text
-      setTimeout(() => {
-        setDisplayText(text);
-        setIsTransitioning(false);
-      }, 300);
-    } else {
-      // Normal content updates - this happens on EVERY delta during streaming
-      setDisplayText(text);
+    const wasRegenerating = isRegenerating;
+    const nowRegenerating = guardrailData?.validationPhase === "regenerating";
+    
+    // Detect when regeneration starts
+    if (!wasRegenerating && nowRegenerating) {
+      setIsRegenerating(true);
     }
-  }, [text, guardrailData, displayText]);
+    
+    // Detect when regeneration completes
+    if (wasRegenerating && !nowRegenerating) {
+      setIsRegenerating(false);
+    }
+    
+    // Always update display text - the CSS will handle the animation
+    setDisplayText(text);
+  }, [text, guardrailData, isRegenerating]);
 
   // Parse and sanitize markdown in real-time (memoized for performance)
   // This runs on EVERY displayText change, which means every streaming delta
@@ -150,9 +147,9 @@ export default function BotMessage({
 
         {/* Render formatted markdown content (both during streaming and after) */}
         {formattedHtml && (
-          <div className={`w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black guardrail-transition ${
+          <div className={`w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black relative ${
             isError ? 'border-red-400 bg-red-50' : 'border-gray-200'
-          } ${isTransitioning ? 'guardrail-fade-out' : 'guardrail-fade-in'}`}>
+          } ${isRegenerating ? 'regenerating-text' : ''}`}>
             {formatText(formattedHtml)}
             
             {/* Show typing indicator while streaming */}

@@ -31,7 +31,7 @@ interface ServeData {
 // Minimal message type for Messages component
 export interface Message {
   id?: string;
-  role: "user" | "assistant" | "assistant-loading";
+  role: "user" | "assistant" | "assistant-loading" | "phase";
   type: "normal" | "product";
   content?: string;
   productMeta?: any;
@@ -40,6 +40,8 @@ export interface Message {
   isWelcome?: boolean;
   loading?: boolean;
   guardrailData?: GuardrailData;
+  phase?: string;
+  phaseMessage?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -181,6 +183,19 @@ export default function App() {
 
     return processed.flatMap((m): Message[] => {
       const id = (m as any).id as string | undefined;
+
+      // Handle phase indicators (thinking, function calls, etc.)
+      if (m.type === "phase" || (m as any)._phase) {
+        return [
+          {
+            id,
+            role: "phase",
+            type: "normal",
+            phase: (m as any)._phase || "thinking",
+            phaseMessage: (m as any)._phaseMessage || "Working…",
+          },
+        ];
+      }
 
       // Detect our custom loading placeholder messages injected by StreamingChat
       if ((m as any)._isPlaceholder) {
@@ -443,7 +458,7 @@ export default function App() {
     hydratedThreadRef.current = null;
     // Reset UI state
     setMessages([]);
-    setSendFn(() => () => {});
+    // Note: Don't reset sendFn - StreamingChat keeps the same function reference
     setIsLoadingThread(false);
   };
 
@@ -500,11 +515,6 @@ export default function App() {
       )}
 
       <div className="p-4 pt-1">
-        {/* Connecting indicator while fetching session */}
-        {isSessionLoading && (
-          <span className="text-sm text-gray-500">Connecting…</span>
-        )}
-
         {/* Sources component - displays frontendData components in a carousel */}
         <Sources 
           messages={sourceMessages} 
