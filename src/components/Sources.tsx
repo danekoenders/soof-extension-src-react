@@ -17,17 +17,25 @@ export interface SourceGroup {
 interface SourcesProps {
   messages: SourceGroup[];
   onNavigate?: (messageId: string) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: (collapsed: boolean) => void;
 }
 
-export default function Sources({ messages, onNavigate }: SourcesProps) {
+export default function Sources({ messages, onNavigate, isCollapsed: externalIsCollapsed, onToggleCollapse }: SourcesProps) {
   // Don't render if no sources - check BEFORE any hooks
   if (!messages || messages.length === 0) {
     return null;
   }
 
   // Start at the last group (most recent)
-  const [currentGroupIndex, setCurrentGroupIndex] = useState(() => Math.max(0, messages.length - 1));
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(() =>
+    Math.max(0, messages.length - 1)
+  );
+  const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
+  
+  // Use external collapsed state if provided, otherwise use internal
+  const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
+  const setIsCollapsed = onToggleCollapse || setInternalIsCollapsed;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({
     scrollLeft: 0,
@@ -45,7 +53,7 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
   useEffect(() => {
     const currentCount = messages.length;
     const previousCount = previousMessageCountRef.current;
-    
+
     // If messages were added (not removed), navigate to the last group
     if (currentCount > previousCount) {
       const newIndex = currentCount - 1;
@@ -60,13 +68,16 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
     else if (currentGroupIndex >= currentCount) {
       setCurrentGroupIndex(Math.max(0, currentCount - 1));
     }
-    
+
     previousMessageCountRef.current = currentCount;
   }, [messages, currentGroupIndex, onNavigate]);
 
   // On initial mount, scroll to the current (last) group's first product
   useEffect(() => {
-    if (!hasInitiallyScrolledRef.current && messages[currentGroupIndex]?.products?.[0]?.id) {
+    if (
+      !hasInitiallyScrolledRef.current &&
+      messages[currentGroupIndex]?.products?.[0]?.id
+    ) {
       hasInitiallyScrolledRef.current = true;
       // Small delay to ensure the Messages component has rendered
       setTimeout(() => {
@@ -135,8 +146,8 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
       startXRef.current = e.pageX - el.offsetLeft;
       scrollLeftRef.current = el.scrollLeft;
       dragDistanceRef.current = 0;
-      el.style.cursor = 'grabbing';
-      el.style.userSelect = 'none';
+      el.style.cursor = "grabbing";
+      el.style.userSelect = "none";
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -151,8 +162,8 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
     const onMouseUpOrLeave = () => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
-        el.style.cursor = 'grab';
-        el.style.userSelect = '';
+        el.style.cursor = "grab";
+        el.style.userSelect = "";
       }
     };
 
@@ -164,18 +175,18 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
       }
     };
 
-    el.addEventListener('mousedown', onMouseDown);
-    el.addEventListener('mousemove', onMouseMove);
-    el.addEventListener('mouseup', onMouseUpOrLeave);
-    el.addEventListener('mouseleave', onMouseUpOrLeave);
-    el.addEventListener('click', onClick, true); // Use capture phase
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mousemove", onMouseMove);
+    el.addEventListener("mouseup", onMouseUpOrLeave);
+    el.addEventListener("mouseleave", onMouseUpOrLeave);
+    el.addEventListener("click", onClick, true); // Use capture phase
 
     return () => {
-      el.removeEventListener('mousedown', onMouseDown);
-      el.removeEventListener('mousemove', onMouseMove);
-      el.removeEventListener('mouseup', onMouseUpOrLeave);
-      el.removeEventListener('mouseleave', onMouseUpOrLeave);
-      el.removeEventListener('click', onClick, true);
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mousemove", onMouseMove);
+      el.removeEventListener("mouseup", onMouseUpOrLeave);
+      el.removeEventListener("mouseleave", onMouseUpOrLeave);
+      el.removeEventListener("click", onClick, true);
     };
   }, []);
 
@@ -186,9 +197,9 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
   const showScrollbar = hasMultipleProducts && scrollWidth > clientWidth;
 
   return (
-    <div className="mx-4 pb-2 border-t border-gray-200">
+    <div className="mx-4 pb-2 animate-slide-in-up">
       {/* Collapsible header with navigation */}
-      <div className="pt-2">
+      <div className="pt-2 border-t border-gray-200 ">
         <div className="flex items-center justify-between w-full">
           {/* Left side: Navigation and message indicator */}
           <div className="flex items-center gap-2">
@@ -247,7 +258,7 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
                 </button>
               </>
             )}
-            
+
             {/* Label display - show label or default "Bronnen" */}
             <span className="text-xs text-gray-500 ml-2">
               {currentGroup.label || "Bronnen"}
@@ -270,7 +281,9 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={`transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`}
+              className={`transition-transform duration-200 ${
+                isCollapsed ? "" : "rotate-90"
+              }`}
             >
               <polyline points="9 18 15 12 9 6" />
             </svg>
@@ -279,36 +292,44 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
       </div>
 
       {/* Collapsible content */}
-      <div className={`pt-2 transition-all duration-300 ease-in-out overflow-hidden ${
-        isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'
-      }`}>
+      <div
+        className={`transition-all duration-300 ease-in-out overflow-hidden ${
+          isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
+        }`}
+      >
         {/* Product display area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="pt-2 flex-1 overflow-hidden">
           <div className="flex flex-col gap-1">
             {/* Horizontal scrollable products container */}
             <div className="relative w-full min-w-0 box-border">
               <div
                 ref={scrollRef}
                 className={`flex flex-row gap-3 pb-0 w-full min-w-0 box-border ${
-                  currentGroup.products.length <= 3 ? 'justify-start' : 'flex-nowrap overflow-x-auto scrollbar-none cursor-grab'
+                  currentGroup.products.length <= 3
+                    ? "justify-start"
+                    : "flex-nowrap overflow-x-auto scrollbar-none cursor-grab"
                 }`}
-                style={currentGroup.products.length > 3 ? { overflowX: "auto" } : undefined}
+                style={
+                  currentGroup.products.length > 3
+                    ? { overflowX: "auto" }
+                    : undefined
+                }
               >
                 {currentGroup.products.map((product) => {
                   // Dynamic width based on number of products
-                  let widthClass = '';
+                  let widthClass = "";
                   const count = currentGroup.products.length;
-                  
+
                   if (count === 1) {
-                    widthClass = 'w-full max-w-[400px]';
+                    widthClass = "w-full max-w-[400px]";
                   } else if (count === 2) {
-                    widthClass = 'w-[calc(50%-6px)]';
+                    widthClass = "w-[calc(50%-6px)]";
                   } else if (count === 3) {
-                    widthClass = 'w-[calc(33.333%-8px)]';
+                    widthClass = "w-[calc(33.333%-8px)]";
                   } else {
-                    widthClass = 'flex-none w-[85%] min-w-[280px]';
+                    widthClass = "flex-none w-[85%] min-w-[280px]";
                   }
-                  
+
                   return (
                     <div
                       key={product.id}
@@ -340,4 +361,3 @@ export default function Sources({ messages, onNavigate }: SourcesProps) {
     </div>
   );
 }
-

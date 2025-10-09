@@ -28,7 +28,6 @@ interface ServeData {
   myShopifyDomain: string;
 }
 
-
 // Minimal message type for Messages component
 export interface Message {
   id?: string;
@@ -71,6 +70,9 @@ export default function App() {
   const BACKEND_BASE = "http://localhost:3000";
   // const BACKEND_BASE = "https://laintern-agent.fly.dev";
   const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
+  const [isWaitingForThread, setIsWaitingForThread] = useState(false);
+  const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
+  const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
 
   const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
 
@@ -86,6 +88,10 @@ export default function App() {
     setMessages(msgs);
   }, []);
 
+  const handleWaitingForThread = useCallback((isWaiting: boolean) => {
+    setIsWaitingForThread(isWaiting);
+  }, []);
+
   // no-op: threadToken managed in hook
 
   /* --------------------------- 2. Fetch serveData ------------------------- */
@@ -99,7 +105,7 @@ export default function App() {
     (async () => {
       try {
         const res = await fetch(`${BACKEND_BASE}/api/agent/serve`);
-        if (!res.ok) throw new Error('Failed to fetch serve data');
+        if (!res.ok) throw new Error("Failed to fetch serve data");
         const data: ServeData = await res.json();
         setServeData(data);
         setCache({ serveData: data });
@@ -187,7 +193,11 @@ export default function App() {
 
       // Handle phase indicators (thinking, function calls, etc.)
       // All placeholders are now phase indicators
-      if (m.type === "phase" || (m as any)._phase || (m as any)._isPlaceholder) {
+      if (
+        m.type === "phase" ||
+        (m as any)._phase ||
+        (m as any)._isPlaceholder
+      ) {
         return [
           {
             id,
@@ -207,22 +217,26 @@ export default function App() {
 
       if (m.type === "ai") {
         const productMeta = (m as any)._productMeta;
-        const productGroupId = (m as any)._productGroupId;
         const content = (m.content ?? "") as string;
         const isError = (m as any)._isError;
-        
-        if (!productMeta && !content.trim()) {
+
+        // Filter out product messages (they're shown in Sources component)
+        if (productMeta) {
           return [];
         }
+
+        // Filter out empty messages
+        if (!content.trim()) {
+          return [];
+        }
+
         const done = (m as any)._stream_done !== false; // default to true if undefined
         return [
           {
             id,
             role: isError ? "assistant-error" : "assistant",
-            type: productMeta ? "product" : "normal",
+            type: "normal",
             content: content,
-            productMeta: productMeta,
-            productGroupId: productGroupId,
             loading: !done,
             guardrailData: (m as any)._guardrailData,
           },
@@ -253,7 +267,7 @@ export default function App() {
     const token = chatSession.threadToken;
     if (!token) return;
     if (hydratedThreadRef.current === token) return;
-    
+
     // Only fetch if messages are empty (page refresh/returning user)
     // Skip fetch if we're already in the middle of a conversation
     if (messages.length > 0) {
@@ -294,11 +308,13 @@ export default function App() {
 
             if (role === "user") {
               const content = extractText(item?.content);
-              return [{ 
-                id: `hydrated-user-${historyIndex}-${Date.now()}`,
-                type: "human", 
-                content 
-              }];
+              return [
+                {
+                  id: `hydrated-user-${historyIndex}-${Date.now()}`,
+                  type: "human",
+                  content,
+                },
+              ];
             }
 
             // Handle assistant messages, including embedded frontend data
@@ -309,29 +325,35 @@ export default function App() {
               let content: string = extractText(item?.content);
               if (!content) content = item?.text || item?.output || "";
               if (content && content.trim()) {
-                out.push({ 
+                out.push({
                   id: `hydrated-text-${historyIndex}-${Date.now()}`,
-                  type: "ai", 
-                  content, 
-                  _stream_done: true 
+                  type: "ai",
+                  content,
+                  _stream_done: true,
                 });
               }
 
               // Extract guardrails metadata and attach to the text message
               try {
                 const blocks = Array.isArray(item?.content) ? item.content : [];
-                const guardrailsBlock = blocks.find((b: any) => b?.type === "guardrails_metadata");
-                
+                const guardrailsBlock = blocks.find(
+                  (b: any) => b?.type === "guardrails_metadata"
+                );
+
                 if (guardrailsBlock && out.length > 0) {
                   // Attach guardrails data to the first AI text message
                   const textMessage = out[0];
                   textMessage._guardrailData = {
                     wasRegenerated: guardrailsBlock.wasRegenerated || false,
-                    claims: guardrailsBlock.claims ? {
-                      allowedClaims: guardrailsBlock.claims.allowedClaims || [],
-                      violatedClaims: guardrailsBlock.claims.violatedClaims || [],
-                    } : undefined,
-                    validationPhase: 'done', // Hydrated data is always done
+                    claims: guardrailsBlock.claims
+                      ? {
+                          allowedClaims:
+                            guardrailsBlock.claims.allowedClaims || [],
+                          violatedClaims:
+                            guardrailsBlock.claims.violatedClaims || [],
+                        }
+                      : undefined,
+                    validationPhase: "done", // Hydrated data is always done
                   };
                 }
               } catch (_) {
@@ -344,22 +366,33 @@ export default function App() {
                 const frontendBlocks = blocks.filter(
                   (b: any) => b?.type === "frontend_data" && b?.data
                 );
-                
+
                 for (const block of frontendBlocks) {
                   // Process entries in new format: { entries: [{ type, label, data }] }
-                  if (block.data?.entries && Array.isArray(block.data.entries)) {
+                  if (
+                    block.data?.entries &&
+                    Array.isArray(block.data.entries)
+                  ) {
                     for (const entry of block.data.entries) {
-                      if (!entry.type || !Array.isArray(entry.data) || entry.data.length === 0) continue;
-                      
+                      if (
+                        !entry.type ||
+                        !Array.isArray(entry.data) ||
+                        entry.data.length === 0
+                      )
+                        continue;
+
                       const entryType = entry.type;
                       const entryLabel = entry.label; // Use backend label (optional)
                       const groupId = `hydrated-${entryType}-${historyIndex}-${Date.now()}`;
-                      
+
                       // For now, only handle products type (others can be added later)
                       if (entryType === "products") {
                         const productMessages = entry.data
                           .map((p: any) => normalizeProduct(p))
-                          .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
+                          .filter(
+                            (pm: ProductMeta | null): pm is ProductMeta =>
+                              pm !== null
+                          )
                           .map((pm: ProductMeta, idx: number) => ({
                             id: `${groupId}-${idx}`,
                             type: "ai",
@@ -378,11 +411,17 @@ export default function App() {
                     }
                   }
                   // Fallback: Old format { products: [...] } for backward compatibility
-                  else if (Array.isArray(block.data?.products) && block.data.products.length > 0) {
+                  else if (
+                    Array.isArray(block.data?.products) &&
+                    block.data.products.length > 0
+                  ) {
                     const groupId = `hydrated-products-${historyIndex}-${Date.now()}`;
                     const productMessages = block.data.products
                       .map((p: any) => normalizeProduct(p))
-                      .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
+                      .filter(
+                        (pm: ProductMeta | null): pm is ProductMeta =>
+                          pm !== null
+                      )
                       .map((pm: ProductMeta, idx: number) => ({
                         id: `${groupId}-${idx}`,
                         type: "ai",
@@ -403,11 +442,11 @@ export default function App() {
 
               // If neither text nor frontend data produced output, still return an empty ai to be safe
               if (out.length === 0) {
-                out.push({ 
+                out.push({
                   id: `hydrated-empty-${historyIndex}-${Date.now()}`,
-                  type: "ai", 
-                  content: "", 
-                  _stream_done: true 
+                  type: "ai",
+                  content: "",
+                  _stream_done: true,
                 });
               }
               return out;
@@ -433,6 +472,8 @@ export default function App() {
   const handleSend = (text: string) => {
     if (!hasValidSession || isSessionLoading) return;
     if (!sendFn || sendFn.toString() === (() => {}).toString()) return;
+    // Collapse sources when sending a new message
+    setIsSourcesCollapsed(true);
     sendFn(text);
   };
 
@@ -483,14 +524,14 @@ export default function App() {
 
   /* -------------------- Extract source messages grouped by productGroupId -------------------- */
   const sourceMessages = useMemo((): SourceGroup[] => {
-    // Filter messages that have products AND are validated
-    const messagesWithProducts = displayMessages.filter(
-      (msg) => msg.productMeta && msg.id && msg.productGroupId
+    // Extract directly from raw messages array (not displayMessages which filters out products)
+    const messagesWithProducts = messages.filter(
+      (msg: any) => msg._productMeta && msg.id && msg._productGroupId
     );
 
     // Group by productGroupId first
-    const grouped = messagesWithProducts.reduce((acc, msg) => {
-      const groupId = msg.productGroupId!;
+    const grouped = messagesWithProducts.reduce((acc: any, msg: any) => {
+      const groupId = msg._productGroupId;
       if (!acc[groupId]) {
         acc[groupId] = {
           products: [],
@@ -500,78 +541,103 @@ export default function App() {
         };
       }
       acc[groupId].products.push({
-        id: msg.id!,
-        productMeta: msg.productMeta!,
+        id: msg.id,
+        productMeta: msg._productMeta,
       });
-      // Check if this product has validation complete flag, label, and type from the raw messages
-      const rawMsg = messages.find((m: any) => m._productGroupId === groupId);
-      if (rawMsg) {
-        if ((rawMsg as any)._validationComplete) {
-          acc[groupId].isValidated = true;
-        }
-        if ((rawMsg as any)._productGroupLabel) {
-          acc[groupId].label = (rawMsg as any)._productGroupLabel;
-        }
-        if ((rawMsg as any)._productGroupType) {
-          acc[groupId].type = (rawMsg as any)._productGroupType;
-        }
+      // Extract validation flag, label, and type
+      if (msg._validationComplete) {
+        acc[groupId].isValidated = true;
+      }
+      if (msg._productGroupLabel) {
+        acc[groupId].label = msg._productGroupLabel;
+      }
+      if (msg._productGroupType) {
+        acc[groupId].type = msg._productGroupType;
       }
       return acc;
     }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; isValidated: boolean; label?: string; type?: string }>);
 
     // Only include validated groups
     return Object.entries(grouped)
-      .filter(([, group]) => group.isValidated)
-      .map(([groupId, group]) => ({
+      .filter(([, group]: [string, any]) => group.isValidated)
+      .map(([groupId, group]: [string, any]) => ({
         groupId,
         products: group.products,
         label: group.label,
         type: group.type,
       }));
-  }, [displayMessages, messages]);
+  }, [messages]);
+
+  /* -------------------- Persist and manage sources -------------------- */
+  // Keep sources even when new messages don't have frontendData
+  useEffect(() => {
+    if (sourceMessages.length > 0) {
+      setPersistedSources(sourceMessages);
+    }
+  }, [sourceMessages]);
+
+  // Use persisted sources to keep them visible even when new messages don't have sources
+  const displaySources = sourceMessages.length > 0 ? sourceMessages : persistedSources;
+
+  /* -------------------- Auto-scroll when sources expand -------------------- */
+  const prevSourcesLengthRef = useRef(0);
+  useEffect(() => {
+    const currentLength = sourceMessages.length;
+    const prevLength = prevSourcesLengthRef.current;
+
+    // If sources have been added (including first time), expand and scroll to bottom
+    if (currentLength > prevLength) {
+      // Expand sources when new data arrives
+      setIsSourcesCollapsed(false);
+      
+      // Wait for Sources component's expand animation to complete (300ms) + buffer
+      setTimeout(() => {
+        messagesRef.current?.scrollToBottom();
+      }, 500);
+    }
+
+    prevSourcesLengthRef.current = currentLength;
+  }, [sourceMessages]);
 
   /* -------------------- Handle source navigation -------------------- */
-  const handleSourceNavigate = useCallback((messageId: string) => {
-    // Find the product message to get its group ID
-    const productMessage = displayMessages.find(msg => msg.id === messageId && msg.productMeta);
-    
-    if (productMessage?.productGroupId) {
-      const targetGroupId = productMessage.productGroupId;
-      
-      // Find only the PRODUCT messages in this group (not text messages)
-      const productMessagesInGroup = displayMessages.filter(msg => 
-        msg.productGroupId === targetGroupId && msg.productMeta
+  const handleSourceNavigate = useCallback(
+    (messageId: string) => {
+      // Find the product message in the raw messages array
+      const productMessage = messages.find(
+        (msg: any) => msg.id === messageId && msg._productMeta
       );
-      
-      // Find the index of the first product in this group
-      const firstProductIndex = displayMessages.findIndex(msg => msg.id === productMessagesInGroup[0]?.id);
-      
-      if (firstProductIndex > 0) {
-        // Look backwards for the AI text message (could have the same groupId or no groupId)
-        for (let i = firstProductIndex - 1; i >= 0; i--) {
-          const prevMsg = displayMessages[i];
-          // Find the first assistant message (text, not product)
-          if (prevMsg.role === 'assistant' && prevMsg.type === 'normal' && prevMsg.id) {
-            messagesRef.current?.scrollToMessage(prevMsg.id);
-            return;
-          }
-          // Stop if we hit a user message (means we've gone too far)
-          if (prevMsg.role === 'user') {
-            break;
+
+      if (productMessage?._productGroupId) {
+        // Find the index of this product in the raw messages array
+        const productIndex = messages.findIndex(
+          (msg: any) => msg.id === messageId
+        );
+
+        if (productIndex > 0) {
+          // Look backwards for the AI text message
+          for (let i = productIndex - 1; i >= 0; i--) {
+            const prevMsg = messages[i] as any;
+            // Find the first AI text message (not a product message)
+            if (
+              prevMsg.type === "ai" &&
+              prevMsg.content &&
+              prevMsg.content.trim() &&
+              !prevMsg._productMeta &&
+              prevMsg.id
+            ) {
+              messagesRef.current?.scrollToMessage(prevMsg.id);
+              return;
+            }
+            // Stop if we hit a user message (means we've gone too far)
+            if (prevMsg.type === "human") {
+              break;
+            }
           }
         }
       }
-      
-      // Fallback: scroll to the first product in the group
-      if (productMessagesInGroup[0]?.id) {
-        messagesRef.current?.scrollToMessage(productMessagesInGroup[0].id);
-        return;
-      }
-    }
-    
-    // Default: scroll to the provided message ID
-    messagesRef.current?.scrollToMessage(messageId);
-  }, [displayMessages]);
+    },
+    [messages, messagesRef]
+  );
 
   /* -------------------------- New chat handler -------------------------- */
   const handleNewChat = () => {
@@ -580,6 +646,9 @@ export default function App() {
     hydratedThreadRef.current = null;
     // Reset UI state
     setMessages([]);
+    setIsWaitingForThread(false);
+    setPersistedSources([]);
+    setIsSourcesCollapsed(false);
     // Note: Don't reset sendFn - StreamingChat keeps the same function reference
     setIsLoadingThread(false);
   };
@@ -593,28 +662,28 @@ export default function App() {
   }
 
   return (
-    <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[70vh] rounded-2xl overflow-hidden overscroll-contain">
-        <Header
-          shopName={serveData.name}
-          chatbotName={serveData.settings.agentName}
-          theme={serveData.settings.theme}
-          onRestartChat={handleNewChat}
-        />
+    <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[73vh] rounded-2xl overflow-hidden overscroll-contain">
+      <Header
+        shopName={serveData.name}
+        chatbotName={serveData.settings.agentName}
+        theme={serveData.settings.theme}
+        onRestartChat={handleNewChat}
+      />
 
-        <Messages 
-          ref={messagesRef}
-          messages={displayMessages} 
-          onOptionSelect={handleSend} 
-          isLoadingThread={isLoadingThread} 
-        />
+      <Messages
+        ref={messagesRef}
+        messages={displayMessages}
+        onOptionSelect={handleSend}
+        isLoadingThread={isLoadingThread}
+      />
 
       {/* Disclaimer shown only when chat not started and not loading thread */}
       {!chatStarted && !isLoadingThread && (
         <div className="px-4 py-1.5 text-center text-xs text-gray-600 flex flex-col gap-1.5">
           <p className="leading-6 m-0">
             Alle gegevens die je hier achterlaat kunnen uitsluitend worden
-            ingezien door de klantenservice van {serveData.name} en door
-            Soof AI, om de werking van de chatbot te verbeteren.
+            ingezien door de klantenservice van {serveData.name} en door Soof
+            AI, om de werking van de chatbot te verbeteren.
           </p>
           <p className="leading-6 m-0">
             Meer informatie vind je in de{" "}
@@ -633,18 +702,21 @@ export default function App() {
         </div>
       )}
 
-      <div className="p-4 pt-0">
+      <div className="p-4 pt-0 bg-white">
         {/* Sources component - displays frontendData components in a carousel */}
         <Sources 
-          messages={sourceMessages} 
-          onNavigate={handleSourceNavigate} 
+          messages={displaySources} 
+          onNavigate={handleSourceNavigate}
+          isCollapsed={isSourcesCollapsed}
+          onToggleCollapse={setIsSourcesCollapsed}
         />
 
         <Input
           onSend={handleSend}
-          disabled={
+          disableSend={
             !canStream ||
             isSessionLoading ||
+            isWaitingForThread ||
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
           }
@@ -661,6 +733,7 @@ export default function App() {
             setThreadToken={(t) => setThreadToken(t)}
             onMessages={handleMessages}
             onSendFn={handleRegisterSendFn}
+            onWaitingForThread={handleWaitingForThread}
             initialMessages={messages as any}
           />
         )}

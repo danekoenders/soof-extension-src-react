@@ -35,6 +35,7 @@ interface StreamingChatProps {
   onMessages: (msgs: SimpleMessage[]) => void;
   onSendFn: (fn: (text: string) => void) => void;
   initialMessages?: SimpleMessage[];
+  onWaitingForThread?: (isWaiting: boolean) => void; // Callback to notify when waiting for threadToken
 }
 
 export default function StreamingChat({
@@ -46,11 +47,13 @@ export default function StreamingChat({
   onMessages,
   onSendFn,
   initialMessages = [],
+  onWaitingForThread,
 }: StreamingChatProps) {
   const messagesRef = useRef<SimpleMessage[]>([]);
   const cfgRef = useRef({ apiBase, jwt, localLanguage, threadToken });
   const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
   const validationCompleteRef = useRef<boolean>(false);
+  const waitingForThreadRef = useRef<boolean>(false);
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
@@ -96,7 +99,13 @@ export default function StreamingChat({
       onMessages(messagesRef.current);
 
       try {
-        const { apiBase: base, jwt: token, localLanguage: lang, threadToken: tt } = cfgRef.current;
+        const { apiBase: base, jwt: token, localLanguage: lang, threadToken } = cfgRef.current;
+        
+        // If no threadToken exists, we're starting a new thread - set waiting flag
+        if (!threadToken) {
+          waitingForThreadRef.current = true;
+          onWaitingForThread?.(true);
+        }
         const response = await fetch(`${base}/api/agent/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -104,7 +113,7 @@ export default function StreamingChat({
             message: text,
             jwt: token,
             localLanguage: lang,
-            threadToken: tt ?? undefined,
+            threadToken: threadToken ?? undefined,
           }),
         });
 
@@ -296,6 +305,11 @@ export default function StreamingChat({
                 case "session_state": {
                   if (event.threadToken) {
                     setThreadToken(event.threadToken);
+                    // Clear waiting flag since we now have a threadToken
+                    if (waitingForThreadRef.current) {
+                      waitingForThreadRef.current = false;
+                      onWaitingForThread?.(false);
+                    }
                   }
                   break;
                 }
@@ -479,6 +493,12 @@ export default function StreamingChat({
                   messagesRef.current = [...current, errMsg];
                   onMessages(messagesRef.current);
                   console.error('Backend error:', event);
+                  
+                  // Clear waiting flag on error
+                  if (waitingForThreadRef.current) {
+                    waitingForThreadRef.current = false;
+                    onWaitingForThread?.(false);
+                  }
                   break;
                 }
                 case "agent_switch":
@@ -509,6 +529,12 @@ export default function StreamingChat({
         };
         messagesRef.current = [...current, errMsg];
         onMessages(messagesRef.current);
+        
+        // Clear waiting flag on error
+        if (waitingForThreadRef.current) {
+          waitingForThreadRef.current = false;
+          onWaitingForThread?.(false);
+        }
       }
     };
 

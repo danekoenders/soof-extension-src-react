@@ -3,7 +3,8 @@ import type { FormEvent, ChangeEvent } from "react";
 
 interface InputProps {
   onSend: (text: string) => void;
-  disabled: boolean;
+  disableInput?: boolean; // Disable typing in the input field
+  disableSend?: boolean; // Disable sending messages
   theme: {
     primaryBackground: string;
     secondaryBackground: string;
@@ -19,7 +20,8 @@ interface InputProps {
 
 export default function Input({
   onSend,
-  disabled,
+  disableInput = false,
+  disableSend = false,
   theme,
   isMobile,
 }: InputProps) {
@@ -47,7 +49,7 @@ export default function Input({
   const handleSend = (e: FormEvent) => {
     e.preventDefault();
 
-    if (text.trim() && !disabled) {
+    if (text.trim() && !disableSend) {
       onSend(text);
       setText("");
     }
@@ -66,7 +68,7 @@ export default function Input({
           rows={1}
           onChange={handleInputChange}
           value={text}
-          disabled={disabled}
+          disabled={disableInput}
           placeholder="Waar ben je naar op zoek?"
           name="chat-input"
           style={{ resize: 'none' }}
@@ -82,9 +84,9 @@ export default function Input({
         />
         <button
           type="submit"
-          disabled={disabled || !text.trim()}
+          disabled={disableSend || !text.trim()}
           className={`flex items-center justify-center self-end p-2 border-none rounded-md cursor-pointer transition-colors disabled:cursor-not-allowed ${
-            disabled ? "bg-gray-100" : "bg-blue-600 text-white"
+            disableSend ? "bg-gray-100" : "bg-blue-600 text-white"
           }`}
         >
           <svg

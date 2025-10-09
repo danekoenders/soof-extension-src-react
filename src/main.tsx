@@ -30,7 +30,7 @@ import indexCss from "./index.css?inline";
   // Build overlay using Tailwind classes
   const overlay = document.createElement('div');
   overlay.setAttribute('data-soof-overlay', '');
-  overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-start pt-[10vh] z-[999999]';
+  overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-start z-[999999]';
 
   // Utility: close overlay
   const closeOverlay = () => {

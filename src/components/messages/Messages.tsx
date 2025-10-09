@@ -43,6 +43,7 @@ interface MessagesProps {
 
 export interface MessagesRef {
   scrollToMessage: (messageId: string) => void;
+  scrollToBottom: () => void;
 }
 
 const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSelect, isLoadingThread = false }, ref) => {
@@ -54,7 +55,7 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
     el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [messages]);
 
-  // Expose scrollToMessage method to parent
+  // Expose scrollToMessage and scrollToBottom methods to parent
   useImperativeHandle(ref, () => ({
     scrollToMessage: (messageId: string) => {
       const messageEl = messageRefs.current.get(messageId);
@@ -71,7 +72,9 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
         const scrollContainer = messageEl.parentElement;
         if (scrollContainer) {
           const elementTop = messageEl.offsetTop;
-          const offset = 160; // 32px from top for spacing (accounts for padding)
+          // Calculate offset based on viewport height (container is 73vh)
+          // Use ~20% of viewport height for offset to account for header and spacing
+          const offset = window.innerHeight * 0.22;
           scrollContainer.scrollTo({
             top: elementTop - offset,
             behavior: 'smooth'
@@ -80,6 +83,9 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
           messageEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
         }
       }
+    },
+    scrollToBottom: () => {
+      el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
     },
   }));
 
@@ -146,7 +152,7 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
       ) : (
         messages.map((message, index) => renderMessage(message, index))
       )}
-      <div id="el" ref={el} className="h-2.5" />
+      <div id="el" ref={el} className="h-16" />
     </div>
   );
 });

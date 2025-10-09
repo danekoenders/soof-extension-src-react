@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { ProductMeta } from "../../types/product";
 import OptionsList from "./OptionsList";
 import { marked } from "marked";
@@ -54,6 +54,13 @@ export default function BotMessage({
   const [showOptions, setShowOptions] = useState(true);
   const [displayText, setDisplayText] = useState(text);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [originalText, setOriginalText] = useState<string | null>(null);
+  const [fixedDimensions, setFixedDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  
+  const messageRef = useRef<HTMLDivElement>(null);
 
   const handleOptionClick = (value: string) => {
     onOptionClick?.(value);
@@ -67,12 +74,28 @@ export default function BotMessage({
 
     // Detect when regeneration starts
     if (!wasRegenerating && nowRegenerating) {
+      // Store the original text
+      setOriginalText(displayText);
+      
+      // Capture current dimensions before regeneration
+      if (messageRef.current) {
+        const rect = messageRef.current.getBoundingClientRect();
+        setFixedDimensions({
+          width: rect.width,
+          height: rect.height,
+        });
+      }
       setIsRegenerating(true);
     }
 
     // Detect when regeneration completes
     if (wasRegenerating && !nowRegenerating) {
-      setIsRegenerating(false);
+      // Smoothly transition out of regeneration mode
+      setTimeout(() => {
+        setIsRegenerating(false);
+        setFixedDimensions(null);
+        setOriginalText(null);
+      }, 100);
     }
 
     // Always update display text - the CSS will handle the animation
@@ -94,6 +117,19 @@ export default function BotMessage({
       return DOMPurify.sanitize(displayText);
     }
   }, [displayText]);
+
+  // Parse original text for the background layer during regeneration
+  const originalFormattedHtml = useMemo(() => {
+    if (!originalText || !originalText.trim()) return null;
+
+    try {
+      const html = marked.parse(originalText);
+      return DOMPurify.sanitize(html as string);
+    } catch (error) {
+      console.error("Markdown parsing error:", error);
+      return DOMPurify.sanitize(originalText);
+    }
+  }, [originalText]);
 
   const formatText = (html: string | null) => {
     if (!html) return null;
@@ -142,15 +178,40 @@ export default function BotMessage({
         {/* Render formatted markdown content (both during streaming and after) */}
         {formattedHtml && (
           <div
-            className={`flex flex-col gap-2 w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black relative ${
+            ref={messageRef}
+            className={`flex flex-col w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black relative ${
+              isRegenerating ? "overflow-hidden" : ""
+            } ${
               isError ? "border-red-400 bg-red-50" : "border-gray-200"
-            } ${isRegenerating ? "regenerating-text" : ""}`}
+            } ${isRegenerating ? "regenerating-text" : ""} ${guardrailData ? "justify-between" : ""}`}
+            style={
+              fixedDimensions
+                ? {
+                    width: `${fixedDimensions.width}px`,
+                    height: `${fixedDimensions.height}px`,
+                    minHeight: `${fixedDimensions.height}px`,
+                  }
+                : undefined
+            }
           >
-            {formatText(formattedHtml)}
+            {/* Show original text as background layer during regeneration */}
+            {isRegenerating && originalFormattedHtml && (
+              <div className="absolute inset-0 pointer-events-none original-text-layer">
+                {formatText(originalFormattedHtml)}
+              </div>
+            )}
+            
+            {/* Content wrapper - grows to push badge down */}
+            <div className="flex-1 flex flex-col">
+              {/* New text layer (replaces original during regeneration) */}
+              <div className={isRegenerating ? "relative z-10 bg-white/95 new-text-layer" : ""}>
+                {formatText(formattedHtml)}
+              </div>
+            </div>
 
-            {/* Show claims check badge based on validation phase */}
+            {/* Show claims check badge based on validation phase - stays at bottom */}
             {guardrailData && (
-              <div className="px-3 pb-2">
+              <div className={`pb-2 relative z-10 ${isRegenerating ? "bg-white/95" : ""}`}>
                 <ClaimsCheckBadge
                   wasRegenerated={guardrailData.wasRegenerated || false}
                   allowedClaims={guardrailData.claims?.allowedClaims}
