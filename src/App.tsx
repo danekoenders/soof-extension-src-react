@@ -217,11 +217,12 @@ export default function App() {
 
       if (m.type === "ai") {
         const productMeta = (m as any)._productMeta;
+        const checkoutData = (m as any)._checkoutData;
         const content = (m.content ?? "") as string;
         const isError = (m as any)._isError;
 
-        // Filter out product messages (they're shown in Sources component)
-        if (productMeta) {
+        // Filter out product and checkout messages (they're shown in Sources component)
+        if (productMeta || checkoutData) {
           return [];
         }
 
@@ -374,18 +375,19 @@ export default function App() {
                     Array.isArray(block.data.entries)
                   ) {
                     for (const entry of block.data.entries) {
+                      if (!entry.type || !entry.data) continue;
+
+                      // Skip if products type but data is not a valid array
                       if (
-                        !entry.type ||
-                        !Array.isArray(entry.data) ||
-                        entry.data.length === 0
+                        entry.type === "products" &&
+                        (!Array.isArray(entry.data) || entry.data.length === 0)
                       )
                         continue;
 
                       const entryType = entry.type;
-                      const entryLabel = entry.label; // Use backend label (optional)
                       const groupId = `hydrated-${entryType}-${historyIndex}-${Date.now()}`;
 
-                      // For now, only handle products type (others can be added later)
+                      // Handle products type
                       if (entryType === "products") {
                         const productMessages = entry.data
                           .map((p: any) => normalizeProduct(p))
@@ -400,11 +402,27 @@ export default function App() {
                             _stream_done: true,
                             _productMeta: pm,
                             _productGroupId: groupId,
-                            _productGroupLabel: entryLabel,
                             _productGroupType: entryType,
                             _validationComplete: true, // Hydrated data is already validated
                           }));
                         out.push(...productMessages);
+                      }
+                      // Handle checkout type
+                      else if (entryType === "checkout") {
+                        // Checkout data is a single object, not an array
+                        const checkoutData = entry.data;
+                        if (checkoutData) {
+                          out.push({
+                            id: `${groupId}`,
+                            type: "ai",
+                            content: "",
+                            _stream_done: true,
+                            _checkoutData: checkoutData,
+                            _productGroupId: groupId,
+                            _productGroupType: entryType,
+                            _validationComplete: true,
+                          });
+                        }
                       }
                       // Future: handle other types like "orders", "cart", "customer"
                       // else if (entryType === "orders") { ... }
@@ -429,7 +447,6 @@ export default function App() {
                         _stream_done: true,
                         _productMeta: pm,
                         _productGroupId: groupId,
-                        _productGroupLabel: undefined, // No label in legacy format
                         _productGroupType: "products",
                         _validationComplete: true,
                       }));
@@ -524,48 +541,70 @@ export default function App() {
 
   /* -------------------- Extract source messages grouped by productGroupId -------------------- */
   const sourceMessages = useMemo((): SourceGroup[] => {
-    // Extract directly from raw messages array (not displayMessages which filters out products)
-    const messagesWithProducts = messages.filter(
-      (msg: any) => msg._productMeta && msg.id && msg._productGroupId
+    // Extract directly from raw messages array (not displayMessages which filters out products/checkout)
+    const messagesWithFrontendData = messages.filter(
+      (msg: any) =>
+        (msg._productMeta || msg._checkoutData) &&
+        msg.id &&
+        msg._productGroupId
     );
 
     // Group by productGroupId first
-    const grouped = messagesWithProducts.reduce((acc: any, msg: any) => {
+    const grouped = messagesWithFrontendData.reduce((acc: any, msg: any) => {
       const groupId = msg._productGroupId;
       if (!acc[groupId]) {
         acc[groupId] = {
           products: [],
+          checkout: undefined,
           isValidated: false,
-          label: undefined,
           type: undefined,
         };
       }
-      acc[groupId].products.push({
-        id: msg.id,
-        productMeta: msg._productMeta,
-      });
-      // Extract validation flag, label, and type
+      
+      // Handle product messages
+      if (msg._productMeta) {
+        acc[groupId].products.push({
+          id: msg.id,
+          productMeta: msg._productMeta,
+        });
+      }
+      
+      // Handle checkout messages
+      if (msg._checkoutData) {
+        acc[groupId].checkout = msg._checkoutData;
+      }
+      
+      // Extract validation flag and type
       if (msg._validationComplete) {
         acc[groupId].isValidated = true;
-      }
-      if (msg._productGroupLabel) {
-        acc[groupId].label = msg._productGroupLabel;
       }
       if (msg._productGroupType) {
         acc[groupId].type = msg._productGroupType;
       }
       return acc;
-    }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; isValidated: boolean; label?: string; type?: string }>);
+    }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; checkout?: any; isValidated: boolean; type?: string }>);
 
     // Only include validated groups
     return Object.entries(grouped)
       .filter(([, group]: [string, any]) => group.isValidated)
-      .map(([groupId, group]: [string, any]) => ({
-        groupId,
-        products: group.products,
-        label: group.label,
-        type: group.type,
-      }));
+      .map(([groupId, group]: [string, any]) => {
+        const result: SourceGroup = {
+          groupId,
+          type: group.type,
+        };
+        
+        // Add products if they exist
+        if (group.products.length > 0) {
+          result.products = group.products;
+        }
+        
+        // Add checkout if it exists
+        if (group.checkout) {
+          result.checkout = group.checkout;
+        }
+        
+        return result;
+      });
   }, [messages]);
 
   /* -------------------- Persist and manage sources -------------------- */
@@ -602,9 +641,9 @@ export default function App() {
   /* -------------------- Handle source navigation -------------------- */
   const handleSourceNavigate = useCallback(
     (messageId: string) => {
-      // Find the product message in the raw messages array
+      // Find the product message in the raw messages array (not checkout)
       const productMessage = messages.find(
-        (msg: any) => msg.id === messageId && msg._productMeta
+        (msg: any) => msg.id === messageId && msg._productMeta && !msg._checkoutData
       );
 
       if (productMessage?._productGroupId) {

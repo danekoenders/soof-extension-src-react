@@ -16,9 +16,9 @@ type SimpleMessage = {
   _stream_done?: boolean;
   _guardrailData?: GuardrailData;
   _productMeta?: ProductMeta; // Added for product messages
+  _checkoutData?: any; // Added for checkout messages
   _productGroupId?: string; // Group ID for frontend data entries
-  _productGroupLabel?: string; // Label for the group (e.g. "Products", "Recent Orders")
-  _productGroupType?: string; // Type of the group (e.g. "products", "orders", "cart")
+  _productGroupType?: string; // Type of the group (e.g. "products", "orders", "cart", "checkout")
   _isFrontendData?: boolean; // Flag for any message generated from frontendData
   _phase?: string; // Phase type: "thinking", "function", etc.
   _phaseMessage?: string; // Optional custom message for the phase
@@ -411,15 +411,20 @@ export default function StreamingChat({
                     // Process entries in new format: { entries: [{ type, label, data }] }
                     if (event.frontendData?.entries && Array.isArray(event.frontendData.entries)) {
                       for (const entry of event.frontendData.entries) {
-                        if (!entry.type || !Array.isArray(entry.data) || entry.data.length === 0) continue;
+                        if (!entry.type || !entry.data) continue;
+                        
+                        // Skip if products type but data is not a valid array
+                        if (
+                          entry.type === "products" &&
+                          (!Array.isArray(entry.data) || entry.data.length === 0)
+                        ) continue;
                         
                         const entryType = entry.type;
-                        const entryLabel = entry.label; // Use backend label (optional)
                         const groupId = `${entryType}-group-${Date.now()}`;
                         
-                        console.log(`  → Processing entry type: ${entryType}, label: ${entryLabel || '(none)'}, count: ${entry.data.length}`);
+                        console.log(`  → Processing entry type: ${entryType}`);
                         
-                        // For now, only handle products type (others can be added later)
+                        // Handle products type
                         if (entryType === "products") {
                           const productMessages = entry.data
                             .map((p: any) => normalizeProduct(p))
@@ -431,16 +436,32 @@ export default function StreamingChat({
                               _stream_done: true,
                               _productMeta: pm,
                               _productGroupId: groupId,
-                              _productGroupLabel: entryLabel,
                               _productGroupType: entryType,
                               _isFrontendData: true,
                               _validationComplete: isValidated,
                             } as any));
                           current = [...current, ...productMessages];
                         }
+                        // Handle checkout type
+                        else if (entryType === "checkout") {
+                          const checkoutData = entry.data;
+                          if (checkoutData) {
+                            const checkoutMessage: SimpleMessage = {
+                              id: groupId,
+                              type: "ai",
+                              content: "",
+                              _stream_done: true,
+                              _checkoutData: checkoutData,
+                              _productGroupId: groupId,
+                              _productGroupType: entryType,
+                              _isFrontendData: true,
+                              _validationComplete: isValidated,
+                            };
+                            current = [...current, checkoutMessage];
+                          }
+                        }
                         // Future: handle other types like "orders", "cart", "customer"
                         // else if (entryType === "orders") { ... }
-                        // else if (entryType === "cart") { ... }
                       }
                     }
                     // Fallback: Old format { products: [...] } for backward compatibility
@@ -460,7 +481,6 @@ export default function StreamingChat({
                           _stream_done: true,
                           _productMeta: pm,
                           _productGroupId: groupId,
-                          _productGroupLabel: undefined, // No label in legacy format
                           _productGroupType: "products",
                           _isFrontendData: true,
                           _validationComplete: isValidated,

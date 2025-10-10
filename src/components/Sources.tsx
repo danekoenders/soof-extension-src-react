@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ProductCard from "./tools/ProductCard";
+import CheckoutCard from "./tools/CheckoutCard";
 import type { ProductMeta } from "../types/product";
 
 export interface ProductItem {
@@ -7,12 +8,30 @@ export interface ProductItem {
   productMeta: ProductMeta;
 }
 
+export interface CheckoutData {
+  checkout_url: string;
+  total_quantity: number;
+  cost: {
+    totalAmount: {
+      amount: string;
+      currencyCode: string;
+    };
+  };
+}
+
 export interface SourceGroup {
   groupId: string;
-  products: ProductItem[];
-  label?: string; // e.g. "Products", "Recommended Products"
-  type?: string; // e.g. "products", "orders", "cart" - for future extensibility
+  products?: ProductItem[];
+  checkout?: CheckoutData;
+  type?: string; // e.g. "products", "orders", "cart", "checkout"
 }
+
+// Frontend-defined labels for each type
+const TYPE_LABELS: Record<string, string> = {
+  products: "Producten",
+  checkout: "Afrekenen",
+  // Future types can be added here
+};
 
 interface SourcesProps {
   messages: SourceGroup[];
@@ -93,14 +112,17 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
   const hasPreviousGroup = currentGroupIndex > 0;
   const hasNextGroup = currentGroupIndex < messages.length - 1;
   const hasMultipleGroups = messages.length > 1;
-  const hasMultipleProducts = currentGroup.products.length > 1;
+  const totalItems = (currentGroup.products?.length || 0) + (currentGroup.checkout ? 1 : 0);
+  const hasMultipleItems = totalItems > 1;
 
   const handlePreviousGroup = () => {
     if (hasPreviousGroup) {
       const newIndex = currentGroupIndex - 1;
       setCurrentGroupIndex(newIndex);
-      const firstProduct = messages[newIndex].products[0];
-      onNavigate?.(firstProduct.id);
+      const firstProduct = messages[newIndex].products?.[0];
+      if (firstProduct) {
+        onNavigate?.(firstProduct.id);
+      }
     }
   };
 
@@ -108,8 +130,10 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
     if (hasNextGroup) {
       const newIndex = currentGroupIndex + 1;
       setCurrentGroupIndex(newIndex);
-      const firstProduct = messages[newIndex].products[0];
-      onNavigate?.(firstProduct.id);
+      const firstProduct = messages[newIndex].products?.[0];
+      if (firstProduct) {
+        onNavigate?.(firstProduct.id);
+      }
     }
   };
 
@@ -194,7 +218,7 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
   const { scrollLeft, scrollWidth, clientWidth } = scrollState;
   const thumbWidth = Math.max((clientWidth / scrollWidth) * 100, 10); // percent
   const thumbLeft = (scrollLeft / scrollWidth) * 100;
-  const showScrollbar = hasMultipleProducts && scrollWidth > clientWidth;
+  const showScrollbar = hasMultipleItems && scrollWidth > clientWidth;
 
   return (
     <div className="mx-4 pb-2 animate-slide-in-up">
@@ -259,9 +283,9 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
               </>
             )}
 
-            {/* Label display - show label or default "Bronnen" */}
+            {/* Label display - derived from type or default "Bronnen" */}
             <span className="text-xs text-gray-500 ml-2">
-              {currentGroup.label || "Bronnen"}
+              {currentGroup.type ? TYPE_LABELS[currentGroup.type] || "Bronnen" : "Bronnen"}
             </span>
           </div>
 
@@ -297,34 +321,35 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
           isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
         }`}
       >
-        {/* Product display area */}
+        {/* Content display area - horizontal scrollable carousel */}
         <div className="pt-2 flex-1 overflow-hidden">
           <div className="flex flex-col gap-1">
-            {/* Horizontal scrollable products container */}
+            {/* Horizontal scrollable container for products and checkout */}
             <div className="relative w-full min-w-0 box-border">
               <div
                 ref={scrollRef}
                 className={`flex flex-row gap-3 pb-0 w-full min-w-0 box-border ${
-                  currentGroup.products.length <= 3
+                  (currentGroup.products?.length || 0) + (currentGroup.checkout ? 1 : 0) <= 3
                     ? "justify-start"
                     : "flex-nowrap overflow-x-auto scrollbar-none cursor-grab"
                 }`}
                 style={
-                  currentGroup.products.length > 3
+                  (currentGroup.products?.length || 0) + (currentGroup.checkout ? 1 : 0) > 3
                     ? { overflowX: "auto" }
                     : undefined
                 }
               >
-                {currentGroup.products.map((product) => {
-                  // Dynamic width based on number of products
+                {/* Render products */}
+                {currentGroup.products?.map((product) => {
+                  // Dynamic width based on total items (products + checkout)
                   let widthClass = "";
-                  const count = currentGroup.products.length;
+                  const totalCount = (currentGroup.products?.length || 0) + (currentGroup.checkout ? 1 : 0);
 
-                  if (count === 1) {
+                  if (totalCount === 1) {
                     widthClass = "w-full max-w-[400px]";
-                  } else if (count === 2) {
+                  } else if (totalCount === 2) {
                     widthClass = "w-[calc(50%-6px)]";
-                  } else if (count === 3) {
+                  } else if (totalCount === 3) {
                     widthClass = "w-[calc(33.333%-8px)]";
                   } else {
                     widthClass = "flex-none w-[85%] min-w-[280px]";
@@ -340,6 +365,27 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
                     </div>
                   );
                 })}
+                
+                {/* Render checkout card in the carousel */}
+                {currentGroup.checkout && (
+                  <div
+                    key={`checkout-${currentGroup.groupId}`}
+                    className={(() => {
+                      const totalCount = (currentGroup.products?.length || 0) + 1;
+                      if (totalCount === 1) {
+                        return "w-full max-w-[400px]";
+                      } else if (totalCount === 2) {
+                        return "w-[calc(50%-6px)]";
+                      } else if (totalCount === 3) {
+                        return "w-[calc(33.333%-8px)]";
+                      } else {
+                        return "flex-none w-[85%] min-w-[280px]";
+                      }
+                    })()}
+                  >
+                    <CheckoutCard checkout={currentGroup.checkout} />
+                  </div>
+                )}
               </div>
 
               {/* Scrollbar indicator */}
