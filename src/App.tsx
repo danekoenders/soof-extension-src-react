@@ -70,7 +70,7 @@ export default function App() {
   const BACKEND_BASE = "http://localhost:3000";
   // const BACKEND_BASE = "https://laintern-agent.fly.dev";
   const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
-  const [isWaitingForThread, setIsWaitingForThread] = useState(false);
+  const [isWaitingForSessionState, setIsWaitingForSessionState] = useState(false);
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
 
@@ -88,8 +88,8 @@ export default function App() {
     setMessages(msgs);
   }, []);
 
-  const handleWaitingForThread = useCallback((isWaiting: boolean) => {
-    setIsWaitingForThread(isWaiting);
+  const handleWaitingForSessionState = useCallback((isWaiting: boolean) => {
+    setIsWaitingForSessionState(isWaiting);
   }, []);
 
   // no-op: threadToken managed in hook
@@ -685,7 +685,7 @@ export default function App() {
     hydratedThreadRef.current = null;
     // Reset UI state
     setMessages([]);
-    setIsWaitingForThread(false);
+    setIsWaitingForSessionState(false);
     setPersistedSources([]);
     setIsSourcesCollapsed(false);
     // Note: Don't reset sendFn - StreamingChat keeps the same function reference
@@ -755,7 +755,7 @@ export default function App() {
           disableSend={
             !canStream ||
             isSessionLoading ||
-            isWaitingForThread ||
+            isWaitingForSessionState ||
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
           }
@@ -772,7 +772,7 @@ export default function App() {
             setThreadToken={(t) => setThreadToken(t)}
             onMessages={handleMessages}
             onSendFn={handleRegisterSendFn}
-            onWaitingForThread={handleWaitingForThread}
+            onWaitingForSessionState={handleWaitingForSessionState}
             initialMessages={messages as any}
           />
         )}

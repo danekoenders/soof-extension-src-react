@@ -41,7 +41,7 @@ export default function ProductCard({ product }: Props) {
   const cardHref = variantId ? `${host}/variants/${variantId}` : undefined;
 
   return (
-    <div className="p-2.5 w-full rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
+    <div className="p-2.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
       <div className="flex gap-2.5">
         {/* Image on left */}
         <a

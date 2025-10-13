@@ -349,10 +349,9 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
                     widthClass = "w-full max-w-[400px]";
                   } else if (totalCount === 2) {
                     widthClass = "w-[calc(50%-6px)]";
-                  } else if (totalCount === 3) {
-                    widthClass = "w-[calc(33.333%-8px)]";
                   } else {
-                    widthClass = "flex-none w-[85%] min-w-[280px]";
+                    // For 3+ items, use ~45% width to show a peek of the next card
+                    widthClass = "flex-none w-[45%] min-w-[240px]";
                   }
 
                   return (
@@ -376,10 +375,9 @@ export default function Sources({ messages, onNavigate, isCollapsed: externalIsC
                         return "w-full max-w-[400px]";
                       } else if (totalCount === 2) {
                         return "w-[calc(50%-6px)]";
-                      } else if (totalCount === 3) {
-                        return "w-[calc(33.333%-8px)]";
                       } else {
-                        return "flex-none w-[85%] min-w-[280px]";
+                        // For 3+ items, use ~45% width to show a peek of the next card
+                        return "flex-none w-[45%] min-w-[240px]";
                       }
                     })()}
                   >

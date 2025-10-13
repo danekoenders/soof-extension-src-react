@@ -35,7 +35,7 @@ interface StreamingChatProps {
   onMessages: (msgs: SimpleMessage[]) => void;
   onSendFn: (fn: (text: string) => void) => void;
   initialMessages?: SimpleMessage[];
-  onWaitingForThread?: (isWaiting: boolean) => void; // Callback to notify when waiting for threadToken
+  onWaitingForSessionState?: (isWaiting: boolean) => void; // Callback to notify when waiting for session_state
 }
 
 export default function StreamingChat({
@@ -47,13 +47,13 @@ export default function StreamingChat({
   onMessages,
   onSendFn,
   initialMessages = [],
-  onWaitingForThread,
+  onWaitingForSessionState,
 }: StreamingChatProps) {
   const messagesRef = useRef<SimpleMessage[]>([]);
   const cfgRef = useRef({ apiBase, jwt, localLanguage, threadToken });
   const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
   const validationCompleteRef = useRef<boolean>(false);
-  const waitingForThreadRef = useRef<boolean>(false);
+  const waitingForSessionStateRef = useRef<boolean>(false);
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
@@ -101,11 +101,10 @@ export default function StreamingChat({
       try {
         const { apiBase: base, jwt: token, localLanguage: lang, threadToken } = cfgRef.current;
         
-        // If no threadToken exists, we're starting a new thread - set waiting flag
-        if (!threadToken) {
-          waitingForThreadRef.current = true;
-          onWaitingForThread?.(true);
-        }
+        // Always set waiting flag when sending a message - we need to wait for session_state
+        waitingForSessionStateRef.current = true;
+        onWaitingForSessionState?.(true);
+        
         const response = await fetch(`${base}/api/agent/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -305,11 +304,12 @@ export default function StreamingChat({
                 case "session_state": {
                   if (event.threadToken) {
                     setThreadToken(event.threadToken);
-                    // Clear waiting flag since we now have a threadToken
-                    if (waitingForThreadRef.current) {
-                      waitingForThreadRef.current = false;
-                      onWaitingForThread?.(false);
-                    }
+                  }
+                  // Always clear waiting flag when session_state is received
+                  // This ensures the thread has been updated on the backend
+                  if (waitingForSessionStateRef.current) {
+                    waitingForSessionStateRef.current = false;
+                    onWaitingForSessionState?.(false);
                   }
                   break;
                 }
@@ -515,9 +515,9 @@ export default function StreamingChat({
                   console.error('Backend error:', event);
                   
                   // Clear waiting flag on error
-                  if (waitingForThreadRef.current) {
-                    waitingForThreadRef.current = false;
-                    onWaitingForThread?.(false);
+                  if (waitingForSessionStateRef.current) {
+                    waitingForSessionStateRef.current = false;
+                    onWaitingForSessionState?.(false);
                   }
                   break;
                 }
@@ -551,9 +551,9 @@ export default function StreamingChat({
         onMessages(messagesRef.current);
         
         // Clear waiting flag on error
-        if (waitingForThreadRef.current) {
-          waitingForThreadRef.current = false;
-          onWaitingForThread?.(false);
+        if (waitingForSessionStateRef.current) {
+          waitingForSessionStateRef.current = false;
+          onWaitingForSessionState?.(false);
         }
       }
     };
