@@ -28,6 +28,11 @@ interface ServeData {
   myShopifyDomain: string;
 }
 
+type BlockChange = {
+  blockIndex: number;
+  newBlock: string;
+};
+
 // Minimal message type for Messages component
 export interface Message {
   id?: string;
@@ -42,6 +47,8 @@ export interface Message {
   guardrailData?: GuardrailData;
   phase?: string;
   phaseMessage?: string;
+  blockChanges?: BlockChange[];
+  originalContent?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -73,6 +80,7 @@ export default function App() {
   const [isWaitingForSessionState, setIsWaitingForSessionState] = useState(false);
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
+  const [isValidating, setIsValidating] = useState(false);
 
   const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
 
@@ -86,6 +94,26 @@ export default function App() {
 
   const handleMessages = useCallback((msgs: any[]) => {
     setMessages(msgs);
+    
+    // Check if we're currently validating by looking at the last AI message's guardrail state
+    const lastAIMessage = msgs.filter((m: any) => m.type === "ai" && !m._isFrontendData).pop();
+    
+    console.log('🔍 handleMessages - checking validation state:', {
+      totalMessages: msgs.length,
+      hasLastAIMessage: !!lastAIMessage,
+      hasGuardrailData: !!lastAIMessage?._guardrailData,
+      validationPhase: lastAIMessage?._guardrailData?.validationPhase,
+    });
+    
+    if (lastAIMessage?._guardrailData) {
+      const phase = lastAIMessage._guardrailData.validationPhase;
+      const shouldValidate = phase === "validating" || phase === "regenerating";
+      console.log('  → Setting isValidating to:', shouldValidate, '(phase:', phase, ')');
+      setIsValidating(shouldValidate);
+    } else {
+      console.log('  → No guardrail data, setting isValidating to false');
+      setIsValidating(false);
+    }
   }, []);
 
   const handleWaitingForSessionState = useCallback((isWaiting: boolean) => {
@@ -240,6 +268,8 @@ export default function App() {
             content: content,
             loading: !done,
             guardrailData: (m as any)._guardrailData,
+            blockChanges: (m as any)._blockChanges,
+            originalContent: (m as any)._originalContent,
           },
         ];
       }
@@ -556,7 +586,6 @@ export default function App() {
         acc[groupId] = {
           products: [],
           checkout: undefined,
-          isValidated: false,
           type: undefined,
         };
       }
@@ -574,19 +603,15 @@ export default function App() {
         acc[groupId].checkout = msg._checkoutData;
       }
       
-      // Extract validation flag and type
-      if (msg._validationComplete) {
-        acc[groupId].isValidated = true;
-      }
+      // Extract type
       if (msg._productGroupType) {
         acc[groupId].type = msg._productGroupType;
       }
       return acc;
-    }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; checkout?: any; isValidated: boolean; type?: string }>);
+    }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; checkout?: any; type?: string }>);
 
-    // Only include validated groups
+    // Return all groups (no validation check needed)
     return Object.entries(grouped)
-      .filter(([, group]: [string, any]) => group.isValidated)
       .map(([groupId, group]: [string, any]) => {
         const result: SourceGroup = {
           groupId,
@@ -688,6 +713,7 @@ export default function App() {
     setIsWaitingForSessionState(false);
     setPersistedSources([]);
     setIsSourcesCollapsed(false);
+    setIsValidating(false);
     // Note: Don't reset sendFn - StreamingChat keeps the same function reference
     setIsLoadingThread(false);
   };
@@ -716,6 +742,7 @@ export default function App() {
         isLoadingThread={isLoadingThread}
       />
 
+
       {/* Disclaimer shown only when chat not started and not loading thread */}
       {!chatStarted && !isLoadingThread && (
         <div className="px-4 py-1.5 text-center text-xs text-gray-600 flex flex-col gap-1.5">
@@ -741,7 +768,31 @@ export default function App() {
         </div>
       )}
 
-      <div className="p-4 pt-0 bg-white">
+      <div className="p-4 pt-0 bg-white relative">
+        {/* Validation indicator - overlays above Sources */}
+        {isValidating && (
+          <div className="absolute -top-[25px] left-0 right-0 z-20 py-0.5 mx-8 border border-b-0 border-green-100 rounded-t-lg bg-green-50/80 backdrop-blur-sm animate-fade-in flex justify-center pointer-events-none">
+            <div 
+              className="inline-flex items-center gap-2 text-xs text-green-700 cursor-help group relative pointer-events-auto"
+              title="We controleren of alle gezondheidsclaims voldoen aan de NVWA-richtlijnen"
+            >
+              <div className="relative w-3 h-3">
+                <div className="absolute inset-0 rounded-full border-2 border-green-300 border-t-green-600 animate-spin"></div>
+              </div>
+              <span>Bericht checken...</span>
+              
+              {/* Tooltip */}
+              <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
+                <div className="font-medium mb-1">Wat checken we?</div>
+                <div className="text-gray-300">
+                  We controleren of alle gezondheidsclaims in het bericht voldoen aan de officiële NVWA-richtlijnen voor voedingssupplementen.
+                </div>
+                <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Sources component - displays frontendData components in a carousel */}
         <Sources 
           messages={displaySources} 

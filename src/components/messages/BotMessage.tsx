@@ -6,6 +6,11 @@ import DOMPurify from "dompurify";
 import ClaimsCheckBadge from "../guardrails/ClaimsCheckBadge";
 import type { GuardrailData } from "../../types/guardrail";
 
+type BlockChange = {
+  blockIndex: number;
+  newBlock: string;
+};
+
 // Configure marked for better streaming behavior
 marked.setOptions({
   breaks: true, // Convert \n to <br>
@@ -37,6 +42,8 @@ interface BotMessageProps {
   productMeta?: ProductMeta;
   optionsLayout?: "default" | "horizontal-scroll" | "vertical";
   guardrailData?: GuardrailData;
+  blockChanges?: BlockChange[];
+  originalContent?: string;
 }
 
 export default function BotMessage({
@@ -50,11 +57,12 @@ export default function BotMessage({
   // productMeta is no longer rendered here - shown in Sources component instead
   optionsLayout = "default",
   guardrailData,
+  blockChanges,
+  originalContent,
 }: BotMessageProps) {
   const [showOptions, setShowOptions] = useState(true);
   const [displayText, setDisplayText] = useState(text);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [originalText, setOriginalText] = useState<string | null>(null);
   const [fixedDimensions, setFixedDimensions] = useState<{
     width: number;
     height: number;
@@ -74,9 +82,6 @@ export default function BotMessage({
 
     // Detect when regeneration starts
     if (!wasRegenerating && nowRegenerating) {
-      // Store the original text
-      setOriginalText(displayText);
-      
       // Capture current dimensions before regeneration
       if (messageRef.current) {
         const rect = messageRef.current.getBoundingClientRect();
@@ -94,13 +99,61 @@ export default function BotMessage({
       setTimeout(() => {
         setIsRegenerating(false);
         setFixedDimensions(null);
-        setOriginalText(null);
       }, 100);
     }
 
     // Always update display text - the CSS will handle the animation
     setDisplayText(text);
   }, [text, guardrailData, isRegenerating]);
+
+  // Apply block changes and track which blocks changed for animation
+  const regeneratedData = useMemo<{
+    blocks: string[];
+    changedIndices: Set<number>;
+  } | null>(() => {
+    if (!originalContent || !blockChanges || blockChanges.length === 0) {
+      return null;
+    }
+
+    console.log('🔄 Building regenerated blocks:', {
+      originalLength: originalContent.length,
+      blockChangesCount: blockChanges.length
+    });
+
+    // Split by double newlines (paragraphs/blocks)
+    const originalBlocks = originalContent.split(/\n\n+/).filter(b => b.trim());
+    console.log('  → Original split into', originalBlocks.length, 'blocks');
+
+    // Create a map of changes for quick lookup
+    const changesMap = new Map(
+      blockChanges.map(c => [c.blockIndex, c.newBlock])
+    );
+
+    // Find the max block index we need to handle
+    const maxIndex = Math.max(
+      originalBlocks.length - 1,
+      ...blockChanges.map(c => c.blockIndex)
+    );
+
+    const changedIndices = new Set<number>();
+    const resultBlocks: string[] = [];
+
+    // Build the result array, handling both replacements and additions
+    for (let i = 0; i <= maxIndex; i++) {
+      if (changesMap.has(i)) {
+        console.log(`  → Replacing block ${i}`);
+        resultBlocks.push(changesMap.get(i)!);
+        changedIndices.add(i);
+      } else if (i < originalBlocks.length) {
+        // Keep original block
+        resultBlocks.push(originalBlocks[i]);
+      }
+      // If index > original length and no change, skip (backend might have removed it)
+    }
+    
+    console.log('✅ Regenerated blocks built:', resultBlocks.length, 'blocks,', changedIndices.size, 'changed');
+    return { blocks: resultBlocks, changedIndices };
+  }, [originalContent, blockChanges]);
 
   // Parse and sanitize markdown in real-time (memoized for performance)
   // This runs on EVERY displayText change, which means every streaming delta
@@ -118,19 +171,6 @@ export default function BotMessage({
     }
   }, [displayText]);
 
-  // Parse original text for the background layer during regeneration
-  const originalFormattedHtml = useMemo(() => {
-    if (!originalText || !originalText.trim()) return null;
-
-    try {
-      const html = marked.parse(originalText);
-      return DOMPurify.sanitize(html as string);
-    } catch (error) {
-      console.error("Markdown parsing error:", error);
-      return DOMPurify.sanitize(originalText);
-    }
-  }, [originalText]);
-
   const formatText = (html: string | null) => {
     if (!html) return null;
 
@@ -140,6 +180,27 @@ export default function BotMessage({
       </div>
     );
   };
+
+  // Parse each block as markdown and track which ones changed
+  const regeneratedHtmlBlocks = useMemo<Array<{ html: string; isChanged: boolean }> | null>(() => {
+    if (!regeneratedData) return null;
+
+    return regeneratedData.blocks.map((block, index) => {
+      try {
+        const html = marked.parse(block);
+        return {
+          html: DOMPurify.sanitize(html as string),
+          isChanged: regeneratedData.changedIndices.has(index)
+        };
+      } catch (error) {
+        console.error("Markdown parsing error:", error);
+        return {
+          html: DOMPurify.sanitize(block),
+          isChanged: regeneratedData.changedIndices.has(index)
+        };
+      }
+    });
+  }, [regeneratedData]);
 
   // Render order tracking card
   if (type === "orderTracking" && order) {
@@ -180,12 +241,10 @@ export default function BotMessage({
           <div
             ref={messageRef}
             className={`flex flex-col w-fit rounded-[1px_20px_20px_20px] max-w-[90%] text-black relative ${
-              isRegenerating ? "overflow-hidden" : ""
-            } ${
-              isError ? "border-red-400 bg-red-50" : "border-gray-200"
-            } ${isRegenerating ? "regenerating-text" : ""} ${guardrailData ? "justify-between" : ""}`}
+              isError ? "border border-red-400 bg-red-50" : ""
+            } ${guardrailData ? "justify-between" : ""}`}
             style={
-              fixedDimensions
+              fixedDimensions && isRegenerating
                 ? {
                     width: `${fixedDimensions.width}px`,
                     height: `${fixedDimensions.height}px`,
@@ -194,32 +253,37 @@ export default function BotMessage({
                 : undefined
             }
           >
-            {/* Show original text as background layer during regeneration */}
-            {isRegenerating && originalFormattedHtml && (
-              <div className="absolute inset-0 pointer-events-none original-text-layer">
-                {formatText(originalFormattedHtml)}
-              </div>
-            )}
-            
             {/* Content wrapper - grows to push badge down */}
             <div className="flex-1 flex flex-col">
-              {/* New text layer (replaces original during regeneration) */}
-              <div className={isRegenerating ? "relative z-10 bg-white/95 new-text-layer" : ""}>
-                {formatText(formattedHtml)}
-              </div>
+              {/* Show regenerated blocks if available, otherwise show normal text */}
+              {regeneratedHtmlBlocks ? (
+                <div className="px-2 py-2">
+                  <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-a:text-blue-600 hover:prose-a:underline prose-ul:list-disc prose-li:marker:text-gray-400 prose-img:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                    {regeneratedHtmlBlocks.map((block, index) => (
+                      <div
+                        key={index}
+                        className={block.isChanged ? "animate-sentence-glow" : ""}
+                        dangerouslySetInnerHTML={{ __html: block.html }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* Normal rendering when not regenerating */
+                <div className="px-2 py-2">
+                  {formatText(formattedHtml)}
+                </div>
+              )}
             </div>
 
-            {/* Show claims check badge based on validation phase - stays at bottom */}
-            {guardrailData && (
-              <div className={`pb-2 relative z-10 ${isRegenerating ? "bg-white/95" : ""}`}>
+            {/* Show claims check badge only when done (not during validating/regenerating) */}
+            {guardrailData && guardrailData.validationPhase === "done" && (
+              <div className="px-3 pb-2 relative z-10">
                 <ClaimsCheckBadge
                   wasRegenerated={guardrailData.wasRegenerated || false}
                   allowedClaims={guardrailData.claims?.allowedClaims}
                   violatedClaims={guardrailData.claims?.violatedClaims}
-                  isLoading={
-                    guardrailData.validationPhase === "validating" ||
-                    guardrailData.validationPhase === "regenerating"
-                  }
+                  isLoading={false}
                 />
               </div>
             )}

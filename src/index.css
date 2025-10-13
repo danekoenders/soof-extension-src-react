@@ -162,12 +162,28 @@
   }
 }
 
+@keyframes sentenceGlow {
+  0% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(255, 215, 0, 0.2); /* Soft golden glow */
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
 .animate-slide-in-from-top {
   animation: slideInFromTop 0.3s ease-out;
 }
 
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+.animate-sentence-glow {
+  animation: sentenceGlow 0.6s ease-in-out;
 }
 
 .animate-slide-in-chat {
@@ -186,67 +202,6 @@
   animation: spinner 0.8s linear infinite;
 }
 
-/* Scanning effect for regenerating text */
-@keyframes scan-effect {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.regenerating-text {
-  position: relative;
-  animation: scan-effect 1.5s linear infinite;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(59, 130, 246, 0.08) 25%,
-    rgba(59, 130, 246, 0.15) 50%,
-    rgba(59, 130, 246, 0.08) 75%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 200% 100%;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), 
-              height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-              background 0.3s ease-out;
-}
-
-.regenerating-text .original-text-layer {
-  animation: fade-out-smooth 0.6s ease-out forwards;
-}
-
-.regenerating-text .new-text-layer {
-  animation: text-morph 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes fade-out-smooth {
-  0% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0.25;
-  }
-}
-
-@keyframes text-morph {
-  0% {
-    opacity: 0.6;
-    transform: translateY(2px);
-    filter: blur(2px);
-  }
-  50% {
-    opacity: 0.8;
-    filter: blur(1px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
 /* Sources component slide-in animation */
 @keyframes slideInUp {
   0% {
@@ -262,4 +217,7 @@
 .animate-slide-in-up {
   animation: slideInUp 0.4s ease-out forwards;
 }
+
+/* Regenerated text appears with fade-in animation */
+ 
  

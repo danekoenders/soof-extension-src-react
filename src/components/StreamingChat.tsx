@@ -7,6 +7,11 @@ type LocalGuardrailState = GuardrailData & {
   hasClearedForRegen?: boolean;
 };
 
+type BlockChange = {
+  blockIndex: number;
+  newBlock: string;
+};
+
 type SimpleMessage = {
   id?: string;
   type: "human" | "ai" | "tool" | "phase";
@@ -23,7 +28,8 @@ type SimpleMessage = {
   _phase?: string; // Phase type: "thinking", "function", etc.
   _phaseMessage?: string; // Optional custom message for the phase
   _isError?: boolean; // Flag for error messages
-  _validationComplete?: boolean; // Flag indicating validation is complete
+  _blockChanges?: BlockChange[]; // Block-level diff for regeneration
+  _originalContent?: string; // Original content before regeneration
 };
 
 interface StreamingChatProps {
@@ -52,8 +58,9 @@ export default function StreamingChat({
   const messagesRef = useRef<SimpleMessage[]>([]);
   const cfgRef = useRef({ apiBase, jwt, localLanguage, threadToken });
   const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
-  const validationCompleteRef = useRef<boolean>(false);
   const waitingForSessionStateRef = useRef<boolean>(false);
+  const blockChangesRef = useRef<BlockChange[]>([]);
+  const originalContentRef = useRef<string>("");
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
@@ -73,9 +80,6 @@ export default function StreamingChat({
   useEffect(() => {
     const sendMessage = async (text: string) => {
       if (!text.trim()) return;
-
-      // Reset validation complete flag for new message
-      validationCompleteRef.current = false;
 
       const generatedId = `local-${Date.now()}-${Math.random()
         .toString(36)
@@ -189,15 +193,19 @@ export default function StreamingChat({
                     console.log('✨ Setting regenerating phase');
                     let current = messagesRef.current.filter((m) => !m._isPlaceholder);
                     
-                    // IMMEDIATELY remove old frontendData messages when regeneration starts
-                    const frontendDataCount = current.filter(m => m._isFrontendData).length;
-                    if (frontendDataCount > 0) {
-                      console.log(`  → Removing ${frontendDataCount} old frontendData messages immediately`);
-                      current = current.filter(m => !m._isFrontendData);
-                    }
+                    // Note: We no longer remove frontendData messages during regeneration
+                    // because they remain valid - only the AI text message is regenerated.
+                    // If the backend sends new frontend_data, it will naturally replace the old one.
                     
-                    // Get the last AI message AFTER filtering out frontendData
-                    const last = current[current.length - 1];
+                    // Get the last AI text message (not a frontend data message)
+                    const nonFrontendDataMessages = current.filter(m => !m._isFrontendData);
+                    const last = nonFrontendDataMessages[nonFrontendDataMessages.length - 1];
+                    
+                    // Store original content for block-level diffing
+                    if (last && last.type === "ai" && last.content) {
+                      originalContentRef.current = last.content;
+                      blockChangesRef.current = [];
+                    }
                     
                     if (guardrailStateRef.current) {
                       guardrailStateRef.current.validationPhase = event.phase;
@@ -206,7 +214,13 @@ export default function StreamingChat({
                       // Update the current AI message with regenerating status
                       if (last && last.type === "ai") {
                         last._guardrailData = { ...guardrailStateRef.current };
-                        messagesRef.current = [...current.slice(0, -1), last];
+                        last._originalContent = originalContentRef.current;
+                        // Find the index of last in the full current array and update it
+                        const lastIndex = current.findIndex(m => m === last);
+                        if (lastIndex !== -1) {
+                          current[lastIndex] = last;
+                        }
+                        messagesRef.current = current;
                         onMessages(messagesRef.current);
                       }
                     } else {
@@ -219,7 +233,13 @@ export default function StreamingChat({
                       
                       if (last && last.type === "ai") {
                         last._guardrailData = { ...guardrailStateRef.current };
-                        messagesRef.current = [...current.slice(0, -1), last];
+                        last._originalContent = originalContentRef.current;
+                        // Find the index of last in the full current array and update it
+                        const lastIndex = current.findIndex(m => m === last);
+                        if (lastIndex !== -1) {
+                          current[lastIndex] = last;
+                        }
+                        messagesRef.current = current;
                         onMessages(messagesRef.current);
                       }
                     }
@@ -244,10 +264,37 @@ export default function StreamingChat({
                   if (guardrailStateRef.current?.validationPhase === "regenerating") {
                     console.log('  → Setting hasClearedForRegen = false');
                     guardrailStateRef.current.hasClearedForRegen = false;
+                    // Reset block changes for new regenerated content
+                    blockChangesRef.current = [];
                   }
                   
                   messagesRef.current = withoutPlaceholders;
                   onMessages(withoutPlaceholders);
+                  break;
+                }
+                case "block_change": {
+                  // Handle block-level diff events - update immediately for smooth animation
+                  const change: BlockChange = {
+                    blockIndex: event.blockIndex,
+                    newBlock: event.newBlock,
+                  };
+                  
+                  blockChangesRef.current.push(change);
+                  
+                  // Update the last AI message immediately with the new block change
+                  const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  const nonFrontendDataMessages = current.filter(m => !m._isFrontendData);
+                  const last = nonFrontendDataMessages[nonFrontendDataMessages.length - 1];
+                  
+                  if (last && last.type === "ai") {
+                    last._blockChanges = [...blockChangesRef.current];
+                    const lastIndex = current.findIndex(m => m === last);
+                    if (lastIndex !== -1) {
+                      current[lastIndex] = last;
+                      messagesRef.current = current;
+                      onMessages(messagesRef.current);
+                    }
+                  }
                   break;
                 }
                 case "delta": {
@@ -339,78 +386,64 @@ export default function StreamingChat({
                   break;
                 }
                 case "validation_complete": {
-                  // Mark that validation is complete - allows showing frontendData
+                  // Validation complete - finalize validation state
                   console.log('✅ Validation complete, regenerationNeeded:', event.regenerationNeeded);
-                  validationCompleteRef.current = true;
                   
-                  // Add marker to the last AI message
-                  const current = messagesRef.current.filter((m) => !m._isPlaceholder);
-                  const last = current[current.length - 1];
+                  // Get the last AI TEXT message (not frontend data)
+                  let current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  const nonFrontendDataMessages = current.filter(m => !m._isFrontendData);
+                  const last = nonFrontendDataMessages[nonFrontendDataMessages.length - 1];
+                  
+                  console.log('  → Last AI text message:', {
+                    hasLast: !!last,
+                    type: last?.type,
+                    hasGuardrailData: !!last?._guardrailData,
+                    currentPhase: last?._guardrailData?.validationPhase,
+                    isFrontendData: last?._isFrontendData,
+                    blockChangesCount: blockChangesRef.current.length,
+                  });
+                  
                   if (last && last.type === "ai") {
-                    last._validationComplete = true;
+                    // Apply any final accumulated block changes
+                    if (blockChangesRef.current.length > 0) {
+                      last._blockChanges = [...blockChangesRef.current];
+                    }
+                    
+                    // ALWAYS update validation phase to 'done' so the "Checken..." indicator disappears
+                    // Even if guardrailData doesn't exist yet, create it
+                    if (last._guardrailData) {
+                      last._guardrailData = {
+                        ...last._guardrailData,
+                        validationPhase: 'done',
+                      };
+                    } else if (guardrailStateRef.current) {
+                      // Create guardrailData from state if it doesn't exist yet
+                      last._guardrailData = {
+                        ...guardrailStateRef.current,
+                        validationPhase: 'done',
+                      };
+                    }
+                    
+                    console.log('  → Updated to phase:', last._guardrailData?.validationPhase);
                   }
                   
                   messagesRef.current = current;
                   onMessages(current);
                   break;
                 }
-                case "done": {
-                  // finalize last ai message
+                case "frontend_data": {
+                  // Handle frontend data whenever it arrives
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
-                  const last = current[current.length - 1];
                   
-                  // Extract guardrails data from new backend structure
-                  const guardrails = event.guardrails;
-                  const wasRegenerated = guardrails?.wasRegenerated || false;
-                  
-                  console.log('✅ Done event:', {
-                    hasGuardrails: !!guardrails,
-                    wasRegenerated,
-                    currentMessageCount: current.length,
-                    lastMessage: last?.content?.substring(0, 50)
+                  console.log('📦 Frontend data received:', {
+                    hasEntries: !!event.data?.entries,
+                    entriesCount: event.data?.entries?.length
                   });
                   
-                  if (last && last.type === "ai") {
-                    last._stream_done = true;
-                    
-                    // Add guardrail data if present
-                    if (guardrails) {
-                      const guardrailData: GuardrailData = {
-                        wasRegenerated: guardrails.wasRegenerated,
-                        claims: guardrails.claims,
-                        validationPhase: 'done',
-                      };
-                      
-                      last._guardrailData = guardrailData;
-                    }
-                    
-                    guardrailStateRef.current = null; // Reset state
-                  }
-
-                  // If response was regenerated, remove ALL frontendData messages from the original response
-                  if (wasRegenerated) {
-                    console.log('🗑️ Removing old frontendData messages - count before:', current.length);
-                    console.log('  → Current messages:', current.map((m, i) => ({ 
-                      index: i, 
-                      type: m.type, 
-                      isFrontendData: !!m._isFrontendData,
-                      hasProductMeta: !!m._productMeta,
-                      contentPreview: m.content?.substring(0, 30)
-                    })));
-                    
-                    // Remove ALL frontendData messages (any message marked with _isFrontendData)
-                    const frontendDataCount = current.filter(m => m._isFrontendData).length;
-                    current = current.filter(m => !m._isFrontendData);
-                    console.log(`  → Removed ${frontendDataCount} frontendData messages, now ${current.length} messages`);
-                  }
-
-                  // Add new frontendData messages from the (potentially regenerated) response
                   try {
-                    const isValidated = validationCompleteRef.current;
-                    
                     // Process entries in new format: { entries: [{ type, label, data }] }
-                    if (event.frontendData?.entries && Array.isArray(event.frontendData.entries)) {
-                      for (const entry of event.frontendData.entries) {
+                    if (event.data?.entries && Array.isArray(event.data.entries)) {
+                      for (const entry of event.data.entries) {
                         if (!entry.type || !entry.data) continue;
                         
                         // Skip if products type but data is not a valid array
@@ -438,7 +471,6 @@ export default function StreamingChat({
                               _productGroupId: groupId,
                               _productGroupType: entryType,
                               _isFrontendData: true,
-                              _validationComplete: isValidated,
                             } as any));
                           current = [...current, ...productMessages];
                         }
@@ -455,42 +487,53 @@ export default function StreamingChat({
                               _productGroupId: groupId,
                               _productGroupType: entryType,
                               _isFrontendData: true,
-                              _validationComplete: isValidated,
                             };
                             current = [...current, checkoutMessage];
                           }
                         }
                         // Future: handle other types like "orders", "cart", "customer"
-                        // else if (entryType === "orders") { ... }
                       }
                     }
-                    // Fallback: Old format { products: [...] } for backward compatibility
-                    else if (Array.isArray(event.frontendData?.products) && event.frontendData.products.length > 0) {
-                      const products = event.frontendData.products;
-                      const groupId = `products-group-${Date.now()}`;
+                    
+                    console.log('  → Final message count after frontend_data:', current.length);
+                  } catch (error) {
+                    console.error('Error processing frontend_data:', error);
+                  }
+                  
+                  messagesRef.current = current;
+                  onMessages(current);
+                  break;
+                }
+                case "done": {
+                  // finalize last ai message
+                  let current = messagesRef.current.filter((m) => !m._isPlaceholder);
+                  const last = current[current.length - 1];
+                  
+                  // Extract guardrails data from new backend structure
+                  const guardrails = event.guardrails;
+                  
+                  console.log('✅ Done event:', {
+                    hasGuardrails: !!guardrails,
+                    wasRegenerated: guardrails?.wasRegenerated,
+                    currentMessageCount: current.length,
+                    lastMessage: last?.content?.substring(0, 50)
+                  });
+                  
+                  if (last && last.type === "ai") {
+                    last._stream_done = true;
+                    
+                    // Add guardrail data if present
+                    if (guardrails) {
+                      const guardrailData: GuardrailData = {
+                        wasRegenerated: guardrails.wasRegenerated,
+                        claims: guardrails.claims,
+                        validationPhase: 'done',
+                      };
                       
-                      console.log('  → Adding', products.length, 'product messages (legacy format)');
-                      
-                      const productMessages = products
-                        .map((p: any) => normalizeProduct(p))
-                        .filter((pm: ProductMeta | null): pm is ProductMeta => pm !== null)
-                        .map((pm: ProductMeta, idx: number) => ({
-                          id: `${groupId}-${idx}`,
-                          type: "ai",
-                          content: "",
-                          _stream_done: true,
-                          _productMeta: pm,
-                          _productGroupId: groupId,
-                          _productGroupType: "products",
-                          _isFrontendData: true,
-                          _validationComplete: isValidated,
-                        } as any));
-                      current = [...current, ...productMessages];
+                      last._guardrailData = guardrailData;
                     }
                     
-                    console.log('  → Final message count:', current.length);
-                  } catch (_) {
-                    // ignore malformed frontendData
+                    guardrailStateRef.current = null; // Reset state
                   }
 
                   messagesRef.current = current;

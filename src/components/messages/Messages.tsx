@@ -15,6 +15,11 @@ interface Option {
   };
 }
 
+type BlockChange = {
+  blockIndex: number;
+  newBlock: string;
+};
+
 interface Message {
   id?: string;
   role: 'user' | 'assistant' | 'assistant-error' | 'phase';
@@ -33,6 +38,8 @@ interface Message {
   guardrailData?: GuardrailData;
   phase?: string; // Phase type for phase indicators
   phaseMessage?: string; // Message for phase indicators
+  blockChanges?: BlockChange[]; // Block-level diff for regeneration
+  originalContent?: string; // Original content before regeneration
 }
 
 interface MessagesProps {
@@ -48,11 +55,39 @@ export interface MessagesRef {
 
 const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSelect, isLoadingThread = false }, ref) => {
   const el = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const wasAtBottomRef = useRef(true); // Track if user was at bottom before update
+
+  // Helper function to check if user is at the bottom of the scroll container
+  const isAtBottom = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return true; // Default to true if container not found
+    
+    const threshold = 50; // pixels from bottom to consider "at bottom"
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    return scrollHeight - scrollTop - clientHeight < threshold;
+  };
+
+  // Track scroll position to detect if user is at bottom
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      wasAtBottomRef.current = isAtBottom();
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
-    el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    // Only auto-scroll if user WAS at the bottom before messages changed
+    if (wasAtBottomRef.current) {
+      el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Expose scrollToMessage and scrollToBottom methods to parent
@@ -118,6 +153,8 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
             productMeta={message.productMeta}
             optionsLayout={message.isWelcome ? "horizontal-scroll" : undefined}
             guardrailData={message.guardrailData}
+            blockChanges={message.blockChanges}
+            originalContent={message.originalContent}
           />
         );
       }
@@ -146,7 +183,7 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
   };
 
   return (
-    <div className="flex flex-col flex-grow overflow-y-auto px-4 pt-4 gap-2">
+    <div ref={scrollContainerRef} className="flex flex-col flex-grow overflow-y-auto px-4 pt-4 gap-2">
       {isLoadingThread ? (
         <SkeletonMessages />
       ) : (

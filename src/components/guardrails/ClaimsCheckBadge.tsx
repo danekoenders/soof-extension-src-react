@@ -32,7 +32,7 @@ export default function ClaimsCheckBadge({
     return (
       <div className="relative inline-block animate-fade-in">
         <div
-          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded cursor-help hover:bg-green-50/60 transition-colors"
+          className="inline-flex items-center gap-1 px-1 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded cursor-help hover:bg-green-50/60 transition-colors"
           onMouseEnter={() => setShowTooltip(true)}
           onMouseLeave={() => setShowTooltip(false)}
         >
@@ -76,7 +76,7 @@ export default function ClaimsCheckBadge({
     <div className="inline-block w-full animate-fade-in">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded hover:bg-green-50/60 transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1 px-1 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded hover:bg-green-50/60 transition-colors cursor-pointer"
       >
         <svg
           className="w-2.5 h-2.5"
