@@ -507,7 +507,17 @@ export default function StreamingChat({
                 case "done": {
                   // finalize last ai message
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
-                  const last = current[current.length - 1];
+                  
+                  // Find the last TEXT AI message (not frontend_data like products/checkout)
+                  // Iterate backwards to find the first AI message without productMeta or checkoutData
+                  let lastTextAiMessage = null;
+                  for (let i = current.length - 1; i >= 0; i--) {
+                    const msg = current[i];
+                    if (msg.type === "ai" && !(msg as any)._productMeta && !(msg as any)._checkoutData) {
+                      lastTextAiMessage = msg;
+                      break;
+                    }
+                  }
                   
                   // Extract guardrails data from new backend structure
                   const guardrails = event.guardrails;
@@ -515,12 +525,17 @@ export default function StreamingChat({
                   console.log('✅ Done event:', {
                     hasGuardrails: !!guardrails,
                     wasRegenerated: guardrails?.wasRegenerated,
+                    hasClaims: !!guardrails?.claims,
+                    allowedClaimsCount: guardrails?.claims?.allowedClaims?.length || 0,
+                    violatedClaimsCount: guardrails?.claims?.violatedClaims?.length || 0,
                     currentMessageCount: current.length,
-                    lastMessage: last?.content?.substring(0, 50)
+                    foundTextMessage: !!lastTextAiMessage,
+                    lastTextMessage: lastTextAiMessage?.content?.substring(0, 50),
+                    lastTextMessageId: lastTextAiMessage?.id
                   });
                   
-                  if (last && last.type === "ai") {
-                    last._stream_done = true;
+                  if (lastTextAiMessage) {
+                    (lastTextAiMessage as any)._stream_done = true;
                     
                     // Add guardrail data if present
                     if (guardrails) {
@@ -530,7 +545,14 @@ export default function StreamingChat({
                         validationPhase: 'done',
                       };
                       
-                      last._guardrailData = guardrailData;
+                      console.log('📊 Setting guardrail data on TEXT message:', {
+                        messageId: lastTextAiMessage.id,
+                        wasRegenerated: guardrailData.wasRegenerated,
+                        allowedClaims: guardrailData.claims?.allowedClaims?.length || 0,
+                        fullClaims: guardrailData.claims
+                      });
+                      
+                      (lastTextAiMessage as any)._guardrailData = guardrailData;
                     }
                     
                     guardrailStateRef.current = null; // Reset state

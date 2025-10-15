@@ -67,7 +67,7 @@ export default function BotMessage({
     width: number;
     height: number;
   } | null>(null);
-  
+
   const messageRef = useRef<HTMLDivElement>(null);
 
   const handleOptionClick = (value: string) => {
@@ -106,6 +106,18 @@ export default function BotMessage({
     setDisplayText(text);
   }, [text, guardrailData, isRegenerating]);
 
+  // Debug logging for guardrail data
+  useEffect(() => {
+    if (guardrailData && guardrailData.validationPhase === "done") {
+      console.log("🏷️ BotMessage rendering with guardrail data:", {
+        wasRegenerated: guardrailData.wasRegenerated,
+        hasClaims: !!guardrailData.claims,
+        allowedClaimsCount: guardrailData.claims?.allowedClaims?.length || 0,
+        allowedClaims: guardrailData.claims?.allowedClaims,
+      });
+    }
+  }, [guardrailData]);
+
   // Apply block changes and track which blocks changed for animation
   const regeneratedData = useMemo<{
     blocks: string[];
@@ -115,24 +127,26 @@ export default function BotMessage({
       return null;
     }
 
-    console.log('🔄 Building regenerated blocks:', {
+    console.log("🔄 Building regenerated blocks:", {
       originalLength: originalContent.length,
-      blockChangesCount: blockChanges.length
+      blockChangesCount: blockChanges.length,
     });
 
     // Split by double newlines (paragraphs/blocks)
-    const originalBlocks = originalContent.split(/\n\n+/).filter(b => b.trim());
-    console.log('  → Original split into', originalBlocks.length, 'blocks');
+    const originalBlocks = originalContent
+      .split(/\n\n+/)
+      .filter((b) => b.trim());
+    console.log("  → Original split into", originalBlocks.length, "blocks");
 
     // Create a map of changes for quick lookup
     const changesMap = new Map(
-      blockChanges.map(c => [c.blockIndex, c.newBlock])
+      blockChanges.map((c) => [c.blockIndex, c.newBlock])
     );
 
     // Find the max block index we need to handle
     const maxIndex = Math.max(
       originalBlocks.length - 1,
-      ...blockChanges.map(c => c.blockIndex)
+      ...blockChanges.map((c) => c.blockIndex)
     );
 
     const changedIndices = new Set<number>();
@@ -150,8 +164,14 @@ export default function BotMessage({
       }
       // If index > original length and no change, skip (backend might have removed it)
     }
-    
-    console.log('✅ Regenerated blocks built:', resultBlocks.length, 'blocks,', changedIndices.size, 'changed');
+
+    console.log(
+      "✅ Regenerated blocks built:",
+      resultBlocks.length,
+      "blocks,",
+      changedIndices.size,
+      "changed"
+    );
     return { blocks: resultBlocks, changedIndices };
   }, [originalContent, blockChanges]);
 
@@ -182,7 +202,10 @@ export default function BotMessage({
   };
 
   // Parse each block as markdown and track which ones changed
-  const regeneratedHtmlBlocks = useMemo<Array<{ html: string; isChanged: boolean }> | null>(() => {
+  const regeneratedHtmlBlocks = useMemo<Array<{
+    html: string;
+    isChanged: boolean;
+  }> | null>(() => {
     if (!regeneratedData) return null;
 
     return regeneratedData.blocks.map((block, index) => {
@@ -190,13 +213,13 @@ export default function BotMessage({
         const html = marked.parse(block);
         return {
           html: DOMPurify.sanitize(html as string),
-          isChanged: regeneratedData.changedIndices.has(index)
+          isChanged: regeneratedData.changedIndices.has(index),
         };
       } catch (error) {
         console.error("Markdown parsing error:", error);
         return {
           html: DOMPurify.sanitize(block),
-          isChanged: regeneratedData.changedIndices.has(index)
+          isChanged: regeneratedData.changedIndices.has(index),
         };
       }
     });
@@ -257,33 +280,27 @@ export default function BotMessage({
             <div className="flex-1 flex flex-col">
               {/* Show regenerated blocks if available, otherwise show normal text */}
               {regeneratedHtmlBlocks ? (
-                <div className="px-2 py-2">
-                  <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-a:text-blue-600 hover:prose-a:underline prose-ul:list-disc prose-li:marker:text-gray-400 prose-img:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
-                    {regeneratedHtmlBlocks.map((block, index) => (
-                      <div
-                        key={index}
-                        className={block.isChanged ? "animate-sentence-glow" : ""}
-                        dangerouslySetInnerHTML={{ __html: block.html }}
-                      />
-                    ))}
-                  </div>
+                <div className="px-2 prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-a:text-blue-600 hover:prose-a:underline prose-ul:list-disc prose-li:marker:text-gray-400 prose-img:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                  {regeneratedHtmlBlocks.map((block, index) => (
+                    <div
+                      key={index}
+                      className={block.isChanged ? "animate-paragraph-glow" : ""}
+                      dangerouslySetInnerHTML={{ __html: block.html }}
+                    />
+                  ))}
                 </div>
               ) : (
                 /* Normal rendering when not regenerating */
-                <div className="px-2 py-2">
-                  {formatText(formattedHtml)}
-                </div>
+                <div className="px-2">{formatText(formattedHtml)}</div>
               )}
             </div>
 
             {/* Show claims check badge only when done (not during validating/regenerating) */}
             {guardrailData && guardrailData.validationPhase === "done" && (
-              <div className="px-3 pb-2 relative z-10">
+              <div className="px-2 pb-2 relative z-10">
                 <ClaimsCheckBadge
                   wasRegenerated={guardrailData.wasRegenerated || false}
                   allowedClaims={guardrailData.claims?.allowedClaims}
-                  violatedClaims={guardrailData.claims?.violatedClaims}
-                  isLoading={false}
                 />
               </div>
             )}

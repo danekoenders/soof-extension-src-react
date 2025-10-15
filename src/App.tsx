@@ -248,6 +248,18 @@ export default function App() {
         const checkoutData = (m as any)._checkoutData;
         const content = (m.content ?? "") as string;
         const isError = (m as any)._isError;
+        const guardrailData = (m as any)._guardrailData;
+
+        // Debug logging for guardrail data
+        if (guardrailData && guardrailData.validationPhase === 'done') {
+          console.log('🗺️ App.tsx mapping AI message with guardrail data:', {
+            hasGuardrailData: !!guardrailData,
+            wasRegenerated: guardrailData.wasRegenerated,
+            hasClaims: !!guardrailData.claims,
+            allowedClaimsCount: guardrailData.claims?.allowedClaims?.length || 0,
+            allowedClaims: guardrailData.claims?.allowedClaims,
+          });
+        }
 
         // Filter out product and checkout messages (they're shown in Sources component)
         if (productMeta || checkoutData) {
@@ -267,7 +279,7 @@ export default function App() {
             type: "normal",
             content: content,
             loading: !done,
-            guardrailData: (m as any)._guardrailData,
+            guardrailData: guardrailData,
             blockChanges: (m as any)._blockChanges,
             originalContent: (m as any)._originalContent,
           },
