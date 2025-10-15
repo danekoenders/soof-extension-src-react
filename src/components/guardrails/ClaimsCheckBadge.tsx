@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 interface ClaimsCheckBadgeProps {
   wasRegenerated: boolean;
@@ -11,15 +11,6 @@ export default function ClaimsCheckBadge({
 }: ClaimsCheckBadgeProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
-
-  // Debug logging
-  useEffect(() => {
-    console.log("🏷️ ClaimsCheckBadge rendered:", {
-      wasRegenerated,
-      allowedClaimsCount: allowedClaims.length,
-      allowedClaims: allowedClaims,
-    });
-  }, [wasRegenerated, allowedClaims]);
 
   // Not regenerated OR regenerated but no claims data - show tooltip only
   // This handles both simple checks and regenerated messages where claims weren't loaded

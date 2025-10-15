@@ -522,18 +522,6 @@ export default function StreamingChat({
                   // Extract guardrails data from new backend structure
                   const guardrails = event.guardrails;
                   
-                  console.log('✅ Done event:', {
-                    hasGuardrails: !!guardrails,
-                    wasRegenerated: guardrails?.wasRegenerated,
-                    hasClaims: !!guardrails?.claims,
-                    allowedClaimsCount: guardrails?.claims?.allowedClaims?.length || 0,
-                    violatedClaimsCount: guardrails?.claims?.violatedClaims?.length || 0,
-                    currentMessageCount: current.length,
-                    foundTextMessage: !!lastTextAiMessage,
-                    lastTextMessage: lastTextAiMessage?.content?.substring(0, 50),
-                    lastTextMessageId: lastTextAiMessage?.id
-                  });
-                  
                   if (lastTextAiMessage) {
                     (lastTextAiMessage as any)._stream_done = true;
                     
@@ -544,13 +532,6 @@ export default function StreamingChat({
                         claims: guardrails.claims,
                         validationPhase: 'done',
                       };
-                      
-                      console.log('📊 Setting guardrail data on TEXT message:', {
-                        messageId: lastTextAiMessage.id,
-                        wasRegenerated: guardrailData.wasRegenerated,
-                        allowedClaims: guardrailData.claims?.allowedClaims?.length || 0,
-                        fullClaims: guardrailData.claims
-                      });
                       
                       (lastTextAiMessage as any)._guardrailData = guardrailData;
                     }

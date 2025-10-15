@@ -98,20 +98,11 @@ export default function App() {
     // Check if we're currently validating by looking at the last AI message's guardrail state
     const lastAIMessage = msgs.filter((m: any) => m.type === "ai" && !m._isFrontendData).pop();
     
-    console.log('🔍 handleMessages - checking validation state:', {
-      totalMessages: msgs.length,
-      hasLastAIMessage: !!lastAIMessage,
-      hasGuardrailData: !!lastAIMessage?._guardrailData,
-      validationPhase: lastAIMessage?._guardrailData?.validationPhase,
-    });
-    
     if (lastAIMessage?._guardrailData) {
       const phase = lastAIMessage._guardrailData.validationPhase;
       const shouldValidate = phase === "validating" || phase === "regenerating";
-      console.log('  → Setting isValidating to:', shouldValidate, '(phase:', phase, ')');
       setIsValidating(shouldValidate);
     } else {
-      console.log('  → No guardrail data, setting isValidating to false');
       setIsValidating(false);
     }
   }, []);
@@ -249,17 +240,6 @@ export default function App() {
         const content = (m.content ?? "") as string;
         const isError = (m as any)._isError;
         const guardrailData = (m as any)._guardrailData;
-
-        // Debug logging for guardrail data
-        if (guardrailData && guardrailData.validationPhase === 'done') {
-          console.log('🗺️ App.tsx mapping AI message with guardrail data:', {
-            hasGuardrailData: !!guardrailData,
-            wasRegenerated: guardrailData.wasRegenerated,
-            hasClaims: !!guardrailData.claims,
-            allowedClaimsCount: guardrailData.claims?.allowedClaims?.length || 0,
-            allowedClaims: guardrailData.claims?.allowedClaims,
-          });
-        }
 
         // Filter out product and checkout messages (they're shown in Sources component)
         if (productMeta || checkoutData) {

@@ -141,17 +141,6 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
         message.role === "assistant" ||
         message.role === "assistant-error"
       ) {
-        // Debug logging for guardrail data
-        if (message.guardrailData && message.guardrailData.validationPhase === 'done') {
-          console.log('📨 Messages.tsx passing guardrailData to BotMessage:', {
-            hasGuardrailData: !!message.guardrailData,
-            wasRegenerated: message.guardrailData.wasRegenerated,
-            hasClaims: !!message.guardrailData.claims,
-            allowedClaimsCount: message.guardrailData.claims?.allowedClaims?.length || 0,
-            allowedClaims: message.guardrailData.claims?.allowedClaims,
-          });
-        }
-        
         return (
           <BotMessage
             text={message.content || ""}

@@ -106,18 +106,6 @@ export default function BotMessage({
     setDisplayText(text);
   }, [text, guardrailData, isRegenerating]);
 
-  // Debug logging for guardrail data
-  useEffect(() => {
-    if (guardrailData && guardrailData.validationPhase === "done") {
-      console.log("🏷️ BotMessage rendering with guardrail data:", {
-        wasRegenerated: guardrailData.wasRegenerated,
-        hasClaims: !!guardrailData.claims,
-        allowedClaimsCount: guardrailData.claims?.allowedClaims?.length || 0,
-        allowedClaims: guardrailData.claims?.allowedClaims,
-      });
-    }
-  }, [guardrailData]);
-
   // Apply block changes and track which blocks changed for animation
   const regeneratedData = useMemo<{
     blocks: string[];
@@ -127,16 +115,10 @@ export default function BotMessage({
       return null;
     }
 
-    console.log("🔄 Building regenerated blocks:", {
-      originalLength: originalContent.length,
-      blockChangesCount: blockChanges.length,
-    });
-
     // Split by double newlines (paragraphs/blocks)
     const originalBlocks = originalContent
       .split(/\n\n+/)
       .filter((b) => b.trim());
-    console.log("  → Original split into", originalBlocks.length, "blocks");
 
     // Create a map of changes for quick lookup
     const changesMap = new Map(
@@ -155,7 +137,6 @@ export default function BotMessage({
     // Build the result array, handling both replacements and additions
     for (let i = 0; i <= maxIndex; i++) {
       if (changesMap.has(i)) {
-        console.log(`  → Replacing block ${i}`);
         resultBlocks.push(changesMap.get(i)!);
         changedIndices.add(i);
       } else if (i < originalBlocks.length) {
@@ -165,13 +146,6 @@ export default function BotMessage({
       // If index > original length and no change, skip (backend might have removed it)
     }
 
-    console.log(
-      "✅ Regenerated blocks built:",
-      resultBlocks.length,
-      "blocks,",
-      changedIndices.size,
-      "changed"
-    );
     return { blocks: resultBlocks, changedIndices };
   }, [originalContent, blockChanges]);
 
