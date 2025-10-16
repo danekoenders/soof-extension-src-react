@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { normalizeProduct } from "../utils/productTransforms";
 import type { ProductMeta } from "../types/product";
 import type { GuardrailData } from "../types/guardrail";
+import type { OptionsData } from "../types/options";
+import { getPhaseMessage } from "../types/phase";
 
 type LocalGuardrailState = GuardrailData & {
   hasClearedForRegen?: boolean;
@@ -22,14 +24,16 @@ type SimpleMessage = {
   _guardrailData?: GuardrailData;
   _productMeta?: ProductMeta; // Added for product messages
   _checkoutData?: any; // Added for checkout messages
+  _optionsData?: OptionsData; // Added for options messages
   _productGroupId?: string; // Group ID for frontend data entries
-  _productGroupType?: string; // Type of the group (e.g. "products", "orders", "cart", "checkout")
+  _productGroupType?: string; // Type of the group (e.g. "products", "orders", "cart", "checkout", "options")
   _isFrontendData?: boolean; // Flag for any message generated from frontendData
   _phase?: string; // Phase type: "thinking", "function", etc.
   _phaseMessage?: string; // Optional custom message for the phase
   _isError?: boolean; // Flag for error messages
   _blockChanges?: BlockChange[]; // Block-level diff for regeneration
   _originalContent?: string; // Original content before regeneration
+  _renderImmediately?: boolean; // Flag to render immediately without waiting for validation (generic for all entry types)
 };
 
 interface StreamingChatProps {
@@ -39,7 +43,7 @@ interface StreamingChatProps {
   threadToken: string | null;
   setThreadToken: (token: string | null) => void;
   onMessages: (msgs: SimpleMessage[]) => void;
-  onSendFn: (fn: (text: string) => void) => void;
+  onSendFn: (fn: (text: string, requiredTool?: string) => void) => void;
   initialMessages?: SimpleMessage[];
   onWaitingForSessionState?: (isWaiting: boolean) => void; // Callback to notify when waiting for session_state
 }
@@ -78,7 +82,7 @@ export default function StreamingChat({
   }, [initialMessages]);
 
   useEffect(() => {
-    const sendMessage = async (text: string) => {
+    const sendMessage = async (text: string, requiredTool?: string) => {
       if (!text.trim()) return;
 
       const generatedId = `local-${Date.now()}-${Math.random()
@@ -95,7 +99,7 @@ export default function StreamingChat({
         id: `placeholder-${generatedId}`,
         type: "phase",
         _phase: "thinking",
-        _phaseMessage: "Thinking",
+        _phaseMessage: getPhaseMessage("thinking"),
         _isPlaceholder: true,
       };
 
@@ -109,15 +113,22 @@ export default function StreamingChat({
         waitingForSessionStateRef.current = true;
         onWaitingForSessionState?.(true);
         
+        const body: any = {
+          message: text,
+          jwt: token,
+          localLanguage: lang,
+          threadToken: threadToken ?? undefined,
+        };
+        
+        // Add requiredTool if provided
+        if (requiredTool) {
+          body.requiredTool = requiredTool;
+        }
+        
         const response = await fetch(`${base}/api/agent/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: text,
-            jwt: token,
-            localLanguage: lang,
-            threadToken: threadToken ?? undefined,
-          }),
+          body: JSON.stringify(body),
         });
 
         if (!response.body) throw new Error("Response body not streamable");
@@ -170,7 +181,7 @@ export default function StreamingChat({
               const event = JSON.parse(line);
               switch (event.type) {
                 case "phase": {
-                  console.log('🎯 Phase event:', event.phase, 'current guardrailState:', guardrailStateRef.current);
+                  console.log('🎯 Phase event:', event.phase, 'name:', event.name, 'current guardrailState:', guardrailStateRef.current);
                   
                   // Handle guardrail phases
                   if (event.phase === "validating") {
@@ -252,7 +263,11 @@ export default function StreamingChat({
                       console.log('🧠 Thinking phase - but keeping guardrail state for regeneration');
                     }
                   }
-                  updatePlaceholder(event.phase, event.msg || "Working…");
+                  // Use the phase name if available (for function calls like "search_shop_catalog")
+                  // Otherwise fall back to event.phase (for core phases like "thinking", "validating", "regenerating")
+                  const phaseName = event.name || event.phase;
+                  const displayMessage = getPhaseMessage(phaseName);
+                  updatePlaceholder(event.phase, displayMessage);
                   break;
                 }
                 case "assistant_output_start": {
@@ -454,8 +469,10 @@ export default function StreamingChat({
                         
                         const entryType = entry.type;
                         const groupId = `${entryType}-group-${Date.now()}`;
+                        // Extract renderImmediately flag (generic per entry, defaults to false)
+                        const renderImmediately = entry.renderImmediately ?? false;
                         
-                        console.log(`  → Processing entry type: ${entryType}`);
+                        console.log(`  → Processing entry type: ${entryType}, renderImmediately:`, renderImmediately);
                         
                         // Handle products type
                         if (entryType === "products") {
@@ -471,6 +488,7 @@ export default function StreamingChat({
                               _productGroupId: groupId,
                               _productGroupType: entryType,
                               _isFrontendData: true,
+                              _renderImmediately: renderImmediately,
                             } as any));
                           current = [...current, ...productMessages];
                         }
@@ -487,8 +505,44 @@ export default function StreamingChat({
                               _productGroupId: groupId,
                               _productGroupType: entryType,
                               _isFrontendData: true,
+                              _renderImmediately: renderImmediately,
                             };
                             current = [...current, checkoutMessage];
+                          }
+                        }
+                        // Handle options type - attach to last text AI message
+                        else if (entryType === "options") {
+                          const optionsData = entry.data as OptionsData;
+                          
+                          if (optionsData) {
+                            // Find the last text AI message (not frontend_data) to attach options to
+                            const lastTextAiMessage = [...current].reverse().find(
+                              (m) => m.type === "ai" && !m._isFrontendData
+                            );
+                            
+                            if (lastTextAiMessage) {
+                              // Attach options to the existing text message
+                              lastTextAiMessage._optionsData = optionsData;
+                              if (renderImmediately) {
+                                lastTextAiMessage._renderImmediately = true;
+                              }
+                              console.log('  → Attached options to existing text message (renderImmediately:', renderImmediately, ')');
+                            } else {
+                              // No text message found, create a standalone options message
+                              const optionsMessage: SimpleMessage = {
+                                id: groupId,
+                                type: "ai",
+                                content: "",
+                                _stream_done: true,
+                                _optionsData: optionsData,
+                                _productGroupId: groupId,
+                                _productGroupType: entryType,
+                                _isFrontendData: true,
+                                _renderImmediately: renderImmediately,
+                              };
+                              current = [...current, optionsMessage];
+                              console.log('  → Created standalone options message (renderImmediately:', renderImmediately, ')');
+                            }
                           }
                         }
                         // Future: handle other types like "orders", "cart", "customer"
@@ -509,11 +563,11 @@ export default function StreamingChat({
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
                   
                   // Find the last TEXT AI message (not frontend_data like products/checkout)
-                  // Iterate backwards to find the first AI message without productMeta or checkoutData
+                  // Iterate backwards to find the first AI message without _isFrontendData flag
                   let lastTextAiMessage = null;
                   for (let i = current.length - 1; i >= 0; i--) {
                     const msg = current[i];
-                    if (msg.type === "ai" && !(msg as any)._productMeta && !(msg as any)._checkoutData) {
+                    if (msg.type === "ai" && !(msg as any)._isFrontendData) {
                       lastTextAiMessage = msg;
                       break;
                     }
@@ -521,6 +575,13 @@ export default function StreamingChat({
                   
                   // Extract guardrails data from new backend structure
                   const guardrails = event.guardrails;
+                  
+                  console.log('🏁 Done event - last text AI message:', {
+                    found: !!lastTextAiMessage,
+                    hasGuardrails: !!guardrails,
+                    wasRegenerated: guardrails?.wasRegenerated,
+                    hasClaims: !!guardrails?.claims,
+                  });
                   
                   if (lastTextAiMessage) {
                     (lastTextAiMessage as any)._stream_done = true;

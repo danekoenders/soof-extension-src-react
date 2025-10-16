@@ -5,15 +5,7 @@ import PhaseIndicator from "./PhaseIndicator";
 import { SkeletonMessages } from "./SkeletonMessage";
 import type { ProductMeta } from "../../types/product";
 import type { GuardrailData } from "../../types/guardrail";
-
-interface Option {
-  label: string;
-  value?: string;
-  function?: {
-    name: string;
-    params?: Record<string, any>;
-  };
-}
+import type { OptionsData } from "../../types/options";
 
 type BlockChange = {
   blockIndex: number;
@@ -32,9 +24,9 @@ interface Message {
     orderStatusUrl: string;
   };
   productMeta?: ProductMeta;
-  options?: Option[];
-  onOptionClick?: (value: string) => void;
-  isWelcome?: boolean;
+  optionsData?: OptionsData;
+  renderImmediately?: boolean;
+  onOptionClick?: (value: string, requiredTool?: string) => void;
   guardrailData?: GuardrailData;
   phase?: string; // Phase type for phase indicators
   phaseMessage?: string; // Message for phase indicators
@@ -44,7 +36,7 @@ interface Message {
 
 interface MessagesProps {
   messages: Message[];
-  onOptionSelect: (value: string) => void;
+  onOptionSelect: (value: string, requiredTool?: string) => void;
   isLoadingThread?: boolean;
 }
 
@@ -85,8 +77,8 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
 
   useEffect(() => {
     // Only auto-scroll if user WAS at the bottom before messages changed
-    if (wasAtBottomRef.current) {
-      el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    if (wasAtBottomRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -120,7 +112,9 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
       }
     },
     scrollToBottom: () => {
-      el.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
     },
   }));
 
@@ -145,13 +139,13 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
           <BotMessage
             text={message.content || ""}
             loading={!!message.loading}
-            options={message.options}
+            optionsData={message.optionsData}
+            renderImmediately={message.renderImmediately}
             onOptionClick={message.onOptionClick || onOptionSelect}
             isError={message.role === "assistant-error"}
             type={message.type}
             order={message.order}
             productMeta={message.productMeta}
-            optionsLayout={message.isWelcome ? "horizontal-scroll" : undefined}
             guardrailData={message.guardrailData}
             blockChanges={message.blockChanges}
             originalContent={message.originalContent}

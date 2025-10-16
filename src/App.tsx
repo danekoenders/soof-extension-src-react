@@ -10,6 +10,8 @@ import { useCache } from "./hooks/useCache";
 import { normalizeProduct } from "./utils/productTransforms";
 import type { GuardrailData } from "./types/guardrail";
 import type { ProductMeta } from "./types/product";
+import type { OptionsData } from "./types/options";
+import { getPhaseMessage } from "./types/phase";
 // import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
@@ -41,14 +43,14 @@ export interface Message {
   content?: string;
   productMeta?: any;
   productGroupId?: string;
-  options?: { label: string; value: string }[];
-  isWelcome?: boolean;
+  optionsData?: OptionsData;
   loading?: boolean;
   guardrailData?: GuardrailData;
   phase?: string;
   phaseMessage?: string;
   blockChanges?: BlockChange[];
   originalContent?: string;
+  renderImmediately?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -76,7 +78,7 @@ export default function App() {
   // const BACKEND_BASE = "https://soof-s--development.gadget.app";
   const BACKEND_BASE = "http://localhost:3000";
   // const BACKEND_BASE = "https://laintern-agent.fly.dev";
-  const [sendFn, setSendFn] = useState<(text: string) => void>(() => () => {});
+  const [sendFn, setSendFn] = useState<(text: string, requiredTool?: string) => void>(() => () => {});
   const [isWaitingForSessionState, setIsWaitingForSessionState] = useState(false);
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
@@ -88,7 +90,7 @@ export default function App() {
   const messagesRef = useRef<MessagesRef>(null);
 
   // stable callbacks to prevent unnecessary re-renders
-  const handleRegisterSendFn = useCallback((fn: (text: string) => void) => {
+  const handleRegisterSendFn = useCallback((fn: (text: string, requiredTool?: string) => void) => {
     setSendFn(() => fn);
   }, []);
 
@@ -223,7 +225,7 @@ export default function App() {
             role: "phase",
             type: "normal",
             phase: (m as any)._phase || "thinking",
-            phaseMessage: (m as any)._phaseMessage || "Working…",
+            phaseMessage: (m as any)._phaseMessage || getPhaseMessage((m as any)._phase),
           },
         ];
       }
@@ -237,17 +239,31 @@ export default function App() {
       if (m.type === "ai") {
         const productMeta = (m as any)._productMeta;
         const checkoutData = (m as any)._checkoutData;
+        const optionsData = (m as any)._optionsData;
+        const renderImmediately = (m as any)._renderImmediately;
         const content = (m.content ?? "") as string;
         const isError = (m as any)._isError;
         const guardrailData = (m as any)._guardrailData;
+
+        // Debug logging for options and guardrails
+        if (optionsData || guardrailData) {
+          console.log('📋 Message with options/guardrails:', {
+            hasOptions: !!optionsData,
+            optionsType: optionsData?.type,
+            renderImmediately: renderImmediately,
+            hasGuardrails: !!guardrailData,
+            guardrailPhase: guardrailData?.validationPhase,
+            content: content.substring(0, 30) + '...',
+          });
+        }
 
         // Filter out product and checkout messages (they're shown in Sources component)
         if (productMeta || checkoutData) {
           return [];
         }
 
-        // Filter out empty messages
-        if (!content.trim()) {
+        // Filter out empty messages UNLESS they have optionsData
+        if (!content.trim() && !optionsData) {
           return [];
         }
 
@@ -260,6 +276,8 @@ export default function App() {
             content: content,
             loading: !done,
             guardrailData: guardrailData,
+            optionsData: optionsData,
+            renderImmediately: renderImmediately,
             blockChanges: (m as any)._blockChanges,
             originalContent: (m as any)._originalContent,
           },
@@ -408,6 +426,8 @@ export default function App() {
 
                       const entryType = entry.type;
                       const groupId = `hydrated-${entryType}-${historyIndex}-${Date.now()}`;
+                      // Extract renderImmediately flag (generic per entry, defaults to false)
+                      const renderImmediately = entry.renderImmediately ?? false;
 
                       // Handle products type
                       if (entryType === "products") {
@@ -426,6 +446,7 @@ export default function App() {
                             _productGroupId: groupId,
                             _productGroupType: entryType,
                             _validationComplete: true, // Hydrated data is already validated
+                            _renderImmediately: renderImmediately,
                           }));
                         out.push(...productMessages);
                       }
@@ -443,6 +464,33 @@ export default function App() {
                             _productGroupId: groupId,
                             _productGroupType: entryType,
                             _validationComplete: true,
+                            _renderImmediately: renderImmediately,
+                          });
+                        }
+                      }
+                      // Handle options type - attach to text message
+                      else if (entryType === "options") {
+                        const optionsData = entry.data;
+                        
+                        if (optionsData && out.length > 0) {
+                          // Attach options to the first text message in this turn
+                          const textMessage = out[0];
+                          textMessage._optionsData = optionsData;
+                          if (renderImmediately) {
+                            textMessage._renderImmediately = true;
+                          }
+                        } else if (optionsData) {
+                          // No text message, create standalone (edge case)
+                          out.push({
+                            id: `${groupId}`,
+                            type: "ai",
+                            content: "",
+                            _stream_done: true,
+                            _optionsData: optionsData,
+                            _productGroupId: groupId,
+                            _productGroupType: entryType,
+                            _isFrontendData: true,
+                            _renderImmediately: renderImmediately,
                           });
                         }
                       }
@@ -508,12 +556,12 @@ export default function App() {
   }, [chatSession.threadToken]);
 
   /* ------------------------------ 5. Handlers ----------------------------- */
-  const handleSend = (text: string) => {
+  const handleSend = (text: string, requiredTool?: string) => {
     if (!hasValidSession || isSessionLoading) return;
     if (!sendFn || sendFn.toString() === (() => {}).toString()) return;
     // Collapse sources when sending a new message
     setIsSourcesCollapsed(true);
-    sendFn(text);
+    sendFn(text, requiredTool);
   };
 
   /* ------------------------------- 6. Render ------------------------------ */
@@ -542,14 +590,19 @@ export default function App() {
     type: "normal",
     content:
       "Hey! 👋 Ik ben Soof, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!",
-    options: [
-      { label: "Bezorgstatus opvragen..", value: "Waar is mijn bestelling?" },
-      { label: "Product zoeken..", value: "Ik zoek een product" },
-      { label: "Medewerker spreken..", value: "Ik wil een medewerker spreken" },
-      { label: "Retourneren..", value: "Ik wil een retourneren" },
-    ],
-    isWelcome: true,
-  } as any;
+    optionsData: {
+      type: "custom",
+      custom: {
+        optionsLayout: "horizontal-scroll",
+        options: [
+          { type: "message", label: "Bezorgstatus opvragen..", message: "Waar is mijn bestelling?" },
+          { type: "message", label: "Product zoeken..", message: "Ik zoek een product" },
+          { type: "message", label: "Medewerker spreken..", message: "Ik wil een medewerker spreken" },
+          { type: "message", label: "Retourneren..", message: "Ik wil een retourneren" },
+        ],
+      },
+    },
+  };
 
   /* -------------------- Inject welcome/disclaimer -------------------- */
   const displayMessages: Message[] = useMemo(() => {

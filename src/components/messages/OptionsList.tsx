@@ -1,19 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-
-interface Option {
-  label: string;
-  value?: string;
-  function?: {
-    name: string;
-    params?: Record<string, any>;
-  };
-}
+import type { OptionItem } from "../../types/options";
+import { applyParameters } from "../../types/options";
 
 interface OptionsListProps {
-  options: Option[];
-  onOptionClick?: (value: string) => void;
+  optionItems: OptionItem[];
+  onOptionClick?: (value: string, requiredTool?: string) => void;
   showOptions?: boolean;
   optionsLayout?: "default" | "horizontal-scroll" | "vertical";
+  parameters?: Record<string, any>;
 }
 
 function SoofTwinkleIcon({ style }: { style?: React.CSSProperties }) {
@@ -63,12 +57,35 @@ function SoofTwinkleIcon({ style }: { style?: React.CSSProperties }) {
 }
 
 const OptionsList: React.FC<OptionsListProps> = ({
-  options,
+  optionItems,
   onOptionClick,
   showOptions = true,
   optionsLayout = "default",
+  parameters,
 }) => {
-  if (!showOptions || !options || options.length === 0) return null;
+  // Convert optionItems to display format and apply parameters
+  const displayOptions = React.useMemo(() => {
+    return optionItems
+      .filter((item) => item.type === "message") // Only handle message type for now
+      .map((item) => ({
+        label: applyParameters(item.label || "", parameters),
+        value: applyParameters(item.message || "", parameters),
+        requiredTool: item.requiredTool,
+        variant: item.variant || "ai", // Default to "ai" variant
+      }));
+  }, [optionItems, parameters]);
+
+  if (!showOptions || displayOptions.length === 0) return null;
+  
+  // Helper function to get button classes based on variant
+  const getButtonClasses = (variant: "ai" | "primary" | "secondary", baseClasses: string) => {
+    const variantClasses = {
+      ai: "bg-gray-600 text-white hover:bg-gray-700",
+      primary: "bg-blue-600 text-white hover:bg-blue-700",
+      secondary: "bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300",
+    };
+    return `${baseClasses} ${variantClasses[variant]}`;
+  };
 
   // Custom scrollbar logic for horizontal-scroll
   if (optionsLayout === "horizontal-scroll") {
@@ -171,13 +188,18 @@ const OptionsList: React.FC<OptionsListProps> = ({
           ref={scrollRef}
           style={{ overflowX: "auto" }}
         >
-          {options.map((option, index) => (
+          {displayOptions.map((option, index) => (
             <button
               key={index}
-              onClick={() => onOptionClick?.(option.value || "")}
-              className="flex-none min-w-[120px] h-9 px-3 py-2 flex items-center rounded border-0 bg-gray-600 text-white text-xs cursor-pointer"
+              onClick={() => onOptionClick?.(option.value || "", (option as any).requiredTool)}
+              className={getButtonClasses(
+                (option as any).variant,
+                "flex-none min-w-[120px] h-9 px-3 py-2 flex items-center rounded text-xs cursor-pointer transition-colors"
+              )}
             >
-              <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+              {(option as any).variant === "ai" && (
+                <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+              )}
               {option.label}
             </button>
           ))}
@@ -199,13 +221,18 @@ const OptionsList: React.FC<OptionsListProps> = ({
   if (optionsLayout === "vertical") {
     return (
       <div className="flex flex-col gap-2">
-        {options.map((option, index) => (
+        {displayOptions.map((option, index) => (
           <button
             key={index}
-            onClick={() => onOptionClick?.(option.value || "")}
-            className="w-full min-w-[120px] justify-start text-left h-9 px-3 py-2 text-base rounded border-0 bg-gray-600 text-white cursor-pointer"
+            onClick={() => onOptionClick?.(option.value || "", (option as any).requiredTool)}
+            className={getButtonClasses(
+              (option as any).variant,
+              "w-full min-w-[120px] justify-start text-left h-9 px-3 py-2 text-base rounded cursor-pointer transition-colors flex items-center"
+            )}
           >
-            <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+            {(option as any).variant === "ai" && (
+              <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+            )}
             {option.label}
           </button>
         ))}
@@ -216,13 +243,18 @@ const OptionsList: React.FC<OptionsListProps> = ({
   // Default layout
   return (
     <div className="flex flex-row flex-wrap justify-start gap-1.5">
-      {options.map((option, index) => (
+      {displayOptions.map((option, index) => (
         <button
           key={index}
-          onClick={() => onOptionClick?.(option.value || "")}
-          className="w-fit h-6 px-2.5 py-1.5 rounded border-0 bg-gray-600 text-white text-xs cursor-pointer"
+          onClick={() => onOptionClick?.(option.value || "", (option as any).requiredTool)}
+          className={getButtonClasses(
+            (option as any).variant,
+            "w-fit h-6 px-2.5 py-1.5 rounded text-xs cursor-pointer transition-colors flex items-center"
+          )}
         >
-          <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+          {(option as any).variant === "ai" && (
+            <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+          )}
           {option.label}
         </button>
       ))}

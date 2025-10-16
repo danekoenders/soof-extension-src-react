@@ -100,14 +100,14 @@
 }
 
 /* Animations */
-@keyframes slideInFromTop {
+@keyframes slideInFromLeft {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateX(-10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
@@ -174,8 +174,20 @@
   }
 }
 
-.animate-slide-in-from-top {
-  animation: slideInFromTop 0.3s ease-out;
+@keyframes flowLeft {
+  0% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+
+.animate-slide-in-from-left {
+  animation: slideInFromLeft 0.3s ease-out;
 }
 
 .animate-fade-in {
@@ -216,6 +228,10 @@
 
 .animate-slide-in-up {
   animation: slideInUp 0.4s ease-out forwards;
+}
+
+.animate-flow-left {
+  animation: flowLeft 1.2s ease-in-out infinite;
 }
 
 /* Regenerated text appears with fade-in animation */

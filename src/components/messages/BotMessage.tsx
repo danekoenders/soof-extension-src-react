@@ -5,6 +5,8 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import ClaimsCheckBadge from "../guardrails/ClaimsCheckBadge";
 import type { GuardrailData } from "../../types/guardrail";
+import type { OptionsData } from "../../types/options";
+import { OPTIONS_TEMPLATES, applyParameters } from "../../types/options";
 
 type BlockChange = {
   blockIndex: number;
@@ -18,20 +20,12 @@ marked.setOptions({
   silent: true, // Don't throw on parse errors (important for incomplete markdown)
 });
 
-interface Option {
-  label: string;
-  value?: string;
-  function?: {
-    name: string;
-    params?: Record<string, any>;
-  };
-}
-
 interface BotMessageProps {
   text: string;
   loading?: boolean;
-  options?: Option[];
-  onOptionClick?: (value: string) => void;
+  optionsData?: OptionsData;
+  renderImmediately?: boolean;
+  onOptionClick?: (value: string, requiredTool?: string) => void;
   isError?: boolean;
   type?: "normal" | "orderTracking" | "product";
   order?: {
@@ -40,7 +34,6 @@ interface BotMessageProps {
     orderStatusUrl: string;
   };
   productMeta?: ProductMeta;
-  optionsLayout?: "default" | "horizontal-scroll" | "vertical";
   guardrailData?: GuardrailData;
   blockChanges?: BlockChange[];
   originalContent?: string;
@@ -49,13 +42,13 @@ interface BotMessageProps {
 export default function BotMessage({
   text,
   loading = false,
-  options,
+  optionsData,
+  renderImmediately = false,
   onOptionClick,
   isError = false,
   type = "normal",
   order,
   // productMeta is no longer rendered here - shown in Sources component instead
-  optionsLayout = "default",
   guardrailData,
   blockChanges,
   originalContent,
@@ -70,10 +63,58 @@ export default function BotMessage({
 
   const messageRef = useRef<HTMLDivElement>(null);
 
-  const handleOptionClick = (value: string) => {
-    onOptionClick?.(value);
+  const handleOptionClick = (value: string, requiredTool?: string) => {
+    // Only send message if value is not empty
+    if (value && value.trim()) {
+      onOptionClick?.(value, requiredTool);
+    }
+    // Always hide options after clicking
     setShowOptions(false);
   };
+
+  // Helper to apply parameters to text
+  const applyParams = (text?: string) => {
+    return text ? applyParameters(text, optionsData?.parameters) : undefined;
+  };
+
+  // Get the options configuration (template or custom)
+  const optionsConfig = useMemo(() => {
+    if (!optionsData) return null;
+
+    console.log('🎯 BotMessage optionsConfig:', {
+      type: optionsData.type,
+      template: optionsData.template,
+      hasCustom: !!optionsData.custom,
+      parameters: optionsData.parameters,
+    });
+
+    if (optionsData.type === "template" && optionsData.template) {
+      const template = OPTIONS_TEMPLATES[optionsData.template];
+      if (!template) {
+        console.warn(`Template "${optionsData.template}" not found`);
+        return null;
+      }
+      console.log('  → Template found:', template);
+      return template;
+    } else if (optionsData.type === "custom" && optionsData.custom) {
+      console.log('  → Using custom options:', optionsData.custom);
+      return optionsData.custom;
+    }
+
+    return null;
+  }, [optionsData]);
+
+  // Log guardrail data when it changes
+  useEffect(() => {
+    if (guardrailData) {
+      console.log('🛡️ BotMessage guardrailData:', {
+        validationPhase: guardrailData.validationPhase,
+        wasRegenerated: guardrailData.wasRegenerated,
+        hasAllowedClaims: !!guardrailData.claims?.allowedClaims,
+        allowedClaimsCount: guardrailData.claims?.allowedClaims?.length || 0,
+      });
+    }
+  }, [guardrailData]);
 
   // Handle smooth transition when guardrail regeneration occurs
   useEffect(() => {
@@ -219,12 +260,16 @@ export default function BotMessage({
             👁️
           </a>
         </div>
-        <OptionsList
-          options={options || []}
-          onOptionClick={onOptionClick}
-          showOptions={true}
-          optionsLayout={optionsLayout}
-        />
+        {/* Render options if they exist */}
+        {optionsConfig && (
+          <OptionsList
+            optionItems={optionsConfig.options || []}
+            onOptionClick={handleOptionClick}
+            showOptions={showOptions}
+            optionsLayout={optionsConfig.optionsLayout || "default"}
+            parameters={optionsData?.parameters}
+          />
+        )}
       </div>
     );
   }
@@ -267,6 +312,35 @@ export default function BotMessage({
                 /* Normal rendering when not regenerating */
                 <div className="px-2">{formatText(formattedHtml)}</div>
               )}
+              
+              {/* Render label and description for optionsData */}
+              {optionsConfig && (
+                <div className="px-2 flex flex-col gap-2 mt-2">
+                  {optionsConfig.label && (
+                    <h3 className="text-sm font-semibold text-gray-900 m-0">
+                      {applyParams(optionsConfig.label)}
+                    </h3>
+                  )}
+                  {optionsConfig.description && (
+                    <p className="text-sm text-gray-700 m-0">
+                      {applyParams(optionsConfig.description)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Render options if they exist - show when not loading OR when renderImmediately flag is true */}
+              {(!loading || renderImmediately) && optionsConfig && (
+                <div className="px-2 pb-2">
+                  <OptionsList
+                    optionItems={optionsConfig.options || []}
+                    onOptionClick={handleOptionClick}
+                    showOptions={showOptions}
+                    optionsLayout={optionsConfig.optionsLayout || "default"}
+                    parameters={optionsData?.parameters}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Show claims check badge only when done (not during validating/regenerating) */}
@@ -282,16 +356,6 @@ export default function BotMessage({
         )}
 
         {/* Product cards are now rendered in the Sources component above the input */}
-
-        {/* Render options if they exist - only show when not loading */}
-        {!loading && (
-          <OptionsList
-            options={options || []}
-            onOptionClick={handleOptionClick}
-            showOptions={showOptions}
-            optionsLayout={optionsLayout}
-          />
-        )}
       </div>
     </div>
   );
