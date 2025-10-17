@@ -5,14 +5,14 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
-    outDir: "../soof-extension/extensions/soof-chat/assets",
+    outDir: "../soof-extension/extensions/agent/assets",
     assetsDir: ".",
     emptyOutDir: true,
     rollupOptions: {
       input: "./src/main.tsx",
       output: {
-        entryFileNames: "soof-extension.js",
-        assetFileNames: "soof-[name][extname]",
+        entryFileNames: "lt-agent-extension.js",
+        assetFileNames: "lt-agent-[name][extname]",
       },
     },
   },

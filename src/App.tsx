@@ -6,29 +6,17 @@ import Input, { type InputRef } from "./components/Input";
 import Sources, { type SourceGroup } from "./components/Sources";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
-import { useCache } from "./hooks/useCache";
 import { normalizeProduct } from "./utils/productTransforms";
 import type { GuardrailData } from "./types/guardrail";
 import type { ProductMeta } from "./types/product";
 import type { OptionsData } from "./types/options";
 import { getPhaseMessage } from "./types/phase";
+import type { SoofConfig } from "./main";
 // import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
 /* -------------------------------------------------------------------------- */
-
-interface ServeData {
-  settings: {
-    agentName: string;
-    theme: any;
-    functions: any;
-    primaryColor?: string;
-    secondaryColor?: string;
-  };
-  name: string;
-  myShopifyDomain: string;
-}
 
 type BlockChange = {
   blockIndex: number;
@@ -54,20 +42,15 @@ export interface Message {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                               Helper Values                                */
-/* -------------------------------------------------------------------------- */
-
-const LOCAL_LANGUAGE = "en";
-
-/* -------------------------------------------------------------------------- */
 /*                               Main Component                               */
 /* -------------------------------------------------------------------------- */
 
-export default function App() {
-  /* ------------------------------- 1. State ------------------------------- */
+interface AppProps {
+  config: SoofConfig;
+}
 
-  const [serveData, setServeData] = useState<ServeData | null>(null);
-  const [isServeLoading, setIsServeLoading] = useState(true);
+export default function App({ config }: AppProps) {
+  /* ------------------------------- 1. State ------------------------------- */
 
   const { chatSession, setJwt, setThreadToken } = useChatSession();
   const [isSessionLoading, setIsSessionLoading] = useState(false);
@@ -87,7 +70,6 @@ export default function App() {
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
   const [isValidating, setIsValidating] = useState(false);
 
-  const { cache, setCache, isLoaded: isCacheLoaded } = useCache();
 
   // Ref for Messages component to enable scrolling to specific messages
   const messagesRef = useRef<MessagesRef>(null);
@@ -125,32 +107,8 @@ export default function App() {
 
   // no-op: threadToken managed in hook
 
-  /* --------------------------- 2. Fetch serveData ------------------------- */
+  /* --------------------------- 2. Fetch chat token ------------------------ */
   useEffect(() => {
-    if (!isCacheLoaded) return;
-    if (cache.data.serveData) {
-      setServeData(cache.data.serveData);
-      setIsServeLoading(false);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await fetch(`${BACKEND_BASE}/api/agent/serve`);
-        if (!res.ok) throw new Error("Failed to fetch serve data");
-        const data: ServeData = await res.json();
-        setServeData(data);
-        setCache({ serveData: data });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsServeLoading(false);
-      }
-    })();
-  }, [isCacheLoaded]);
-
-  /* --------------------------- 3. Fetch chat token ------------------------ */
-  useEffect(() => {
-    if (!serveData) return;
     if (chatSession.active) return;
     setIsSessionLoading(true);
     (async () => {
@@ -158,7 +116,7 @@ export default function App() {
         const res = await fetch(`${BACKEND_BASE}/api/agent/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ localLanguage: LOCAL_LANGUAGE }),
+          body: JSON.stringify({ localLanguage: config.language }),
         });
         const data = await res.json();
         if (!res.ok || !data?.jwt)
@@ -171,7 +129,7 @@ export default function App() {
         setIsSessionLoading(false);
       }
     })();
-  }, [serveData, chatSession.active, setJwt]);
+  }, [chatSession.active, setJwt]);
 
   const hasValidSession = chatSession.active && !!chatSession.jwt;
   const canStream = hasValidSession; // threadToken optional on first message
@@ -577,19 +535,6 @@ export default function App() {
 
   /* ------------------------------- 6. Render ------------------------------ */
 
-  // Apply theme variables to the document when serveData is available
-  useEffect(() => {
-    if (!serveData) return;
-    const theme = serveData.settings?.theme ?? {};
-    Object.entries(theme).forEach(([key, value]) => {
-      if (typeof value === "string") {
-        // css custom property names should be kebab-case
-        const cssVarName = `--${key}`.replace(/([A-Z])/g, "-$1").toLowerCase();
-        document.documentElement.style.setProperty(cssVarName, value);
-      }
-    });
-  }, [serveData]);
-
   /* -------------------------- Derived flags --------------------------- */
   const chatStarted = useMemo(() => {
     return messages.some((m) => m.type === "human");
@@ -600,7 +545,7 @@ export default function App() {
     role: "assistant",
     type: "normal",
     content:
-      "Hey! 👋 Ik ben Soof, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!",
+      `Hey! 👋 Ik ben ${config.agentName}, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!`,
     optionsData: {
       type: "custom",
       custom: {
@@ -639,7 +584,7 @@ export default function App() {
       base.unshift(WELCOME_MESSAGE);
     }
     return base;
-  }, [mappedMessages, chatStarted, isLoadingThread, serveData]);
+  }, [mappedMessages, chatStarted, isLoadingThread]);
 
   /* -------------------- Extract source messages grouped by productGroupId -------------------- */
   const sourceMessages = useMemo((): SourceGroup[] => {
@@ -791,20 +736,16 @@ export default function App() {
     inputRef.current?.focus();
   };
 
-  if (isServeLoading || !serveData) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spinner rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-base leading-5 w-full h-[73vh] rounded-2xl overflow-hidden overscroll-contain">
+    <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-[16px] leading-[20px] w-full h-[73vh] rounded-2xl overflow-hidden overscroll-contain">
       <Header
-        shopName={serveData.name}
-        chatbotName={serveData.settings.agentName}
-        theme={serveData.settings.theme}
+        shopName="Klantenservice"
+        chatbotName={config.agentName}
+        theme={{
+          primaryBackground: "#0040c0",
+          secondaryBackground: "#ffffff",
+          tertiaryAccent: "#2f2f2f",
+        }}
         onRestartChat={handleNewChat}
       />
 
@@ -820,7 +761,7 @@ export default function App() {
         <div className="w-[80%] self-center px-4 py-1.5 text-center text-xs text-gray-500 flex flex-col gap-1.5">
           <p className="leading-4 m-0">
             Alle gegevens die je hier achterlaat kunnen uitsluitend worden
-            ingezien door de klantenservice van {serveData.name} en door
+            ingezien door de klantenservice en door
             Laintern, om de werking van de agent te verbeteren.
           </p>
           <p className="leading-4 m-0">
@@ -885,7 +826,16 @@ export default function App() {
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
           }
-          theme={serveData.settings.theme}
+          theme={{
+            primaryBackground: "#0040c0",
+            secondaryBackground: "#ffffff",
+            background: "#ffffff",
+            primaryAccent: "#0081b1",
+            secondaryText: "#ffffff",
+            primaryText: "#000000",
+            secondaryBorder: "#cccccc",
+            disabledBackground: "#eeeeee",
+          }}
           isMobile={false}
         />
 
@@ -893,7 +843,7 @@ export default function App() {
           <StreamingChat
             apiBase={BACKEND_BASE}
             jwt={chatSession.jwt!}
-            localLanguage={LOCAL_LANGUAGE}
+            localLanguage={config.language || "en"}
             threadToken={chatSession.threadToken}
             setThreadToken={(t) => setThreadToken(t)}
             onMessages={handleMessages}

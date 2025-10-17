@@ -3,17 +3,30 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import indexCss from "./index.css?inline";
 
+// Configuration interface for chatbot settings
+export interface SoofConfig {
+  type: 'widget' | 'embedded';
+  agentName: string;
+  language?: string;
+  primaryColor?: string;
+  showWelcomeMessage?: boolean;
+  height?: string;
+  width?: string;
+}
+
 // Expose a global that your component can call once its window is in the DOM
-(window as any).__soofMount = (shadowRoot: ShadowRoot) => {
+(window as any).__lainternAgentMount = (shadowRoot: ShadowRoot, config: SoofConfig) => {
+  // Config is now passed from Liquid files with all settings
+  
   // remove any old style/mount
-  shadowRoot.querySelector("style[data-soof]")?.remove();
-  shadowRoot.querySelector('[data-soof-overlay]')?.remove();
+  shadowRoot.querySelector("style[data-laintern-agent]")?.remove();
+  shadowRoot.querySelector('[data-laintern-agent-overlay]')?.remove();
 
   // Find existing mount point in the chat window (created by renderBase)
-  const existingMountPoint = shadowRoot.getElementById("soof-chat-react-root");
+  const existingMountPoint = shadowRoot.getElementById("laintern-agent-react-root");
   if (!existingMountPoint) {
     console.error(
-      "Could not find soof-chat-react-root mount point in chat window"
+      "Could not find laintern-agent-react-root mount point in chat window"
     );
     return;
   }
@@ -23,41 +36,48 @@ import indexCss from "./index.css?inline";
 
   // inject CSS (both base styles and component styles)
   const styleEl = document.createElement("style");
-  styleEl.setAttribute("data-soof", "");
+  styleEl.setAttribute("data-laintern-agent", "");
   styleEl.textContent = indexCss;
   shadowRoot.appendChild(styleEl);
 
-  // Build overlay using Tailwind classes
-  const overlay = document.createElement('div');
-  overlay.setAttribute('data-soof-overlay', '');
-  overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-start z-[999999]';
+  // Different rendering for widget vs embedded
+  if (config.type === 'widget') {
+    // Build overlay using Tailwind classes for widget
+    const overlay = document.createElement('div');
+    overlay.setAttribute('data-laintern-agent-overlay', '');
+    overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-start z-[999999]';
 
-  // Utility: close overlay
-  const closeOverlay = () => {
-    const hostEl: any = (shadowRoot as any).host;
-    if (hostEl && typeof hostEl.closeChatWindow === 'function') {
-      hostEl.closeChatWindow();
-    } else {
-      overlay.remove();
-    }
-  };
+    // Utility: close overlay
+    const closeOverlay = () => {
+      const hostEl: any = (shadowRoot as any).host;
+      if (hostEl && typeof hostEl.closeChatWindow === 'function') {
+        hostEl.closeChatWindow();
+      } else {
+        overlay.remove();
+      }
+    };
 
-  // Style the mount point directly
-  existingMountPoint.className = 'w-full max-w-[640px] mx-4 animate-slide-in-chat';
+    // Style the mount point directly
+    existingMountPoint.className = 'w-full max-w-[640px] mx-4 animate-slide-in-chat';
 
-  overlay.appendChild(existingMountPoint);
-  
-  // Close when clicking on the dimmed background (but not when clicking inside the chat)
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) closeOverlay();
-  });
-  
-  shadowRoot.appendChild(overlay);
+    overlay.appendChild(existingMountPoint);
+    
+    // Close when clicking on the dimmed background (but not when clicking inside the chat)
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeOverlay();
+    });
+    
+    shadowRoot.appendChild(overlay);
+  } else {
+    // Embedded: no overlay, mount directly
+    existingMountPoint.className = 'w-full h-full';
+    // Mount point is already in shadow DOM from renderBase()
+  }
 
   // mount React in the existing mount point
   createRoot(existingMountPoint).render(
     <StrictMode>
-      <App />
+      <App config={config} />
     </StrictMode>
   );
 };

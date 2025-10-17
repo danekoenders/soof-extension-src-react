@@ -1,6 +1,134 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+:host {
+  /* Establish a stable base for em units inside the shadow DOM */
+  font-size: 16px;
+  
+  /* Override Tailwind's rem-based units to use em (relative to :host) */
+  --spacing: 0.25em;
+  
+  /* Text sizes in em */
+  --text-xs: 0.75em;
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: 0.875em;
+  --text-sm--line-height: calc(1.25 / 0.875);
+  --text-base: 1em;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.125em;
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --text-xl: 1.25em;
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --text-2xl: 1.5em;
+  --text-2xl--line-height: calc(2 / 1.5);
+  --text-3xl: 1.875em;
+  --text-3xl--line-height: calc(2.25 / 1.875);
+  
+  /* Border radius in em */
+  --radius-sm: 0.25em;
+  --radius-md: 0.375em;
+  --radius-lg: 0.5em;
+  --radius-xl: 0.75em;
+  --radius-2xl: 1em;
+  --radius-3xl: 1.5em;
+}
+
+/* Override @tailwindcss/typography to use em instead of rem */
+.prose {
+  font-size: 1em !important;
+  line-height: 1.75 !important;
+}
+
+.prose-sm {
+  font-size: 0.875em !important;
+  line-height: 1.71429 !important;
+}
+
+.prose-lg {
+  font-size: 1.125em !important;
+  line-height: 1.77778 !important;
+}
+
+.prose-xl {
+  font-size: 1.25em !important;
+  line-height: 1.8 !important;
+}
+
+.prose-2xl {
+  font-size: 1.5em !important;
+  line-height: 1.66667 !important;
+}
+
+/* Override prose spacing to use em */
+.prose :where(p):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.prose :where([class~="lead"]):not(:where([class~="not-prose"] *)) {
+  font-size: 1.25em;
+  line-height: 1.6;
+  margin-top: 1.2em;
+  margin-bottom: 1.2em;
+}
+
+.prose :where(h1):not(:where([class~="not-prose"] *)) {
+  font-size: 2.25em;
+  margin-top: 0;
+  margin-bottom: 0.88889em;
+  line-height: 1.11111;
+}
+
+.prose :where(h2):not(:where([class~="not-prose"] *)) {
+  font-size: 1.5em;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.33333;
+}
+
+.prose :where(h3):not(:where([class~="not-prose"] *)) {
+  font-size: 1.25em;
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
+  line-height: 1.6;
+}
+
+.prose :where(h4):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
+}
+
+.prose :where(ul, ol):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.prose :where(li):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose :where(blockquote):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.6em;
+  margin-bottom: 1.6em;
+  padding-left: 1em;
+}
+
+.prose :where(code):not(:where([class~="not-prose"] *)) {
+  font-size: 0.875em;
+}
+
+.prose :where(pre):not(:where([class~="not-prose"] *)) {
+  font-size: 0.875em;
+  line-height: 1.71429;
+  margin-top: 1.71429em;
+  margin-bottom: 1.71429em;
+  border-radius: 0.375em;
+  padding: 0.85714em 1.14286em;
+}
+
 :root {
   font-family: "Roboto", sans-serif;
   line-height: 1.5;
@@ -9,9 +137,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent browser text autosizing differences */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-#soof-chat-react-root {
+#laintern-agent-react-root {
   margin: 0;
   width: 100%;
   height: 100%;
