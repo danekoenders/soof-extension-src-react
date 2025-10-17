@@ -78,7 +78,30 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
   useEffect(() => {
     // Only auto-scroll if user WAS at the bottom before messages changed
     if (wasAtBottomRef.current && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      // Use ResizeObserver to detect when content has finished rendering
+      const container = scrollContainerRef.current;
+      let resizeTimeout: number | null = null;
+      
+      const resizeObserver = new ResizeObserver(() => {
+        // Clear previous timeout
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        
+        // Debounce scroll to wait for layout to stabilize
+        resizeTimeout = setTimeout(() => {
+          container.scrollTop = container.scrollHeight;
+        }, 50);
+      });
+      
+      // Observe the container for size changes (indicates content rendering)
+      resizeObserver.observe(container);
+      
+      // Also do an immediate scroll for fast cases
+      container.scrollTop = container.scrollHeight;
+      
+      return () => {
+        resizeObserver.disconnect();
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+      };
     }
   }, [messages]);
 

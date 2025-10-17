@@ -50,14 +50,14 @@ export const OPTIONS_TEMPLATES: Record<
   }
 > = {
   fetch_order_data_tool: {
-    label: "Tracking opsturen per e-mail?",
+    label: "⚠️ Tracking per mail sturen?",
     description:
-      "Wil je een tracking e-mail krijgen met de status van je bestelling?",
+      "Ik kan een e-mail sturen met jouw tracking gegevens. De e-mail wordt verstuurd naar het e-mailadres dat je hebt ingevoerd bij het afrekenen.",
     optionsLayout: "default",
     options: [
       {
         type: "message",
-        label: "Ja",
+        label: "Ja graag",
         message: "Stuur tracking e-mail voor order {orderNumber}",
         requiredTool: "send_order_tracking_email",
         variant: "primary",

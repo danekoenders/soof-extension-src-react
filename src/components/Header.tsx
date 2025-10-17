@@ -26,7 +26,7 @@ export default function Header({
     >
       <div className="flex flex-col">
         <h4 className="text-lg m-0 text-white">
-          {shopName || "Customer Service"}
+          {shopName || "Klantenservice"}
         </h4>
         <span className="text-sm text-white">
           Je chat met {chatbotName || "Soof"}

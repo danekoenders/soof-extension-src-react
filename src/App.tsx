@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 
 import Header from "./components/Header";
 import Messages, { type MessagesRef } from "./components/messages/Messages";
-import Input from "./components/Input";
+import Input, { type InputRef } from "./components/Input";
 import Sources, { type SourceGroup } from "./components/Sources";
 import { useChatSession } from "./hooks/useChatSession";
 import StreamingChat from "./components/StreamingChat";
@@ -78,8 +78,11 @@ export default function App() {
   // const BACKEND_BASE = "https://soof-s--development.gadget.app";
   const BACKEND_BASE = "http://localhost:3000";
   // const BACKEND_BASE = "https://laintern-agent.fly.dev";
-  const [sendFn, setSendFn] = useState<(text: string, requiredTool?: string) => void>(() => () => {});
-  const [isWaitingForSessionState, setIsWaitingForSessionState] = useState(false);
+  const [sendFn, setSendFn] = useState<
+    (text: string, requiredTool?: string) => void
+  >(() => () => {});
+  const [isWaitingForSessionState, setIsWaitingForSessionState] =
+    useState(false);
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
   const [isValidating, setIsValidating] = useState(false);
@@ -88,18 +91,25 @@ export default function App() {
 
   // Ref for Messages component to enable scrolling to specific messages
   const messagesRef = useRef<MessagesRef>(null);
+  const inputRef = useRef<InputRef>(null);
+  const hydratedThreadRef = useRef<string | null>(null);
 
   // stable callbacks to prevent unnecessary re-renders
-  const handleRegisterSendFn = useCallback((fn: (text: string, requiredTool?: string) => void) => {
-    setSendFn(() => fn);
-  }, []);
+  const handleRegisterSendFn = useCallback(
+    (fn: (text: string, requiredTool?: string) => void) => {
+      setSendFn(() => fn);
+    },
+    []
+  );
 
   const handleMessages = useCallback((msgs: any[]) => {
     setMessages(msgs);
-    
+
     // Check if we're currently validating by looking at the last AI message's guardrail state
-    const lastAIMessage = msgs.filter((m: any) => m.type === "ai" && !m._isFrontendData).pop();
-    
+    const lastAIMessage = msgs
+      .filter((m: any) => m.type === "ai" && !m._isFrontendData)
+      .pop();
+
     if (lastAIMessage?._guardrailData) {
       const phase = lastAIMessage._guardrailData.validationPhase;
       const shouldValidate = phase === "validating" || phase === "regenerating";
@@ -225,7 +235,8 @@ export default function App() {
             role: "phase",
             type: "normal",
             phase: (m as any)._phase || "thinking",
-            phaseMessage: (m as any)._phaseMessage || getPhaseMessage((m as any)._phase),
+            phaseMessage:
+              (m as any)._phaseMessage || getPhaseMessage((m as any)._phase),
           },
         ];
       }
@@ -247,13 +258,13 @@ export default function App() {
 
         // Debug logging for options and guardrails
         if (optionsData || guardrailData) {
-          console.log('📋 Message with options/guardrails:', {
+          console.log("📋 Message with options/guardrails:", {
             hasOptions: !!optionsData,
             optionsType: optionsData?.type,
             renderImmediately: renderImmediately,
             hasGuardrails: !!guardrailData,
             guardrailPhase: guardrailData?.validationPhase,
-            content: content.substring(0, 30) + '...',
+            content: content.substring(0, 30) + "...",
           });
         }
 
@@ -303,7 +314,6 @@ export default function App() {
   }, [messages]);
 
   // Hydrate transcript from backend when we have a threadToken
-  const hydratedThreadRef = useRef<string | null>(null);
   useEffect(() => {
     const token = chatSession.threadToken;
     if (!token) return;
@@ -427,7 +437,8 @@ export default function App() {
                       const entryType = entry.type;
                       const groupId = `hydrated-${entryType}-${historyIndex}-${Date.now()}`;
                       // Extract renderImmediately flag (generic per entry, defaults to false)
-                      const renderImmediately = entry.renderImmediately ?? false;
+                      const renderImmediately =
+                        entry.renderImmediately ?? false;
 
                       // Handle products type
                       if (entryType === "products") {
@@ -471,7 +482,7 @@ export default function App() {
                       // Handle options type - attach to text message
                       else if (entryType === "options") {
                         const optionsData = entry.data;
-                        
+
                         if (optionsData && out.length > 0) {
                           // Attach options to the first text message in this turn
                           const textMessage = out[0];
@@ -595,10 +606,26 @@ export default function App() {
       custom: {
         optionsLayout: "horizontal-scroll",
         options: [
-          { type: "message", label: "Bezorgstatus opvragen..", message: "Waar is mijn bestelling?" },
-          { type: "message", label: "Product zoeken..", message: "Ik zoek een product" },
-          { type: "message", label: "Medewerker spreken..", message: "Ik wil een medewerker spreken" },
-          { type: "message", label: "Retourneren..", message: "Ik wil een retourneren" },
+          {
+            type: "message",
+            label: "Bezorgstatus opvragen..",
+            message: "Waar is mijn bestelling?",
+          },
+          {
+            type: "message",
+            label: "Product zoeken..",
+            message: "Ik zoek een product",
+          },
+          {
+            type: "message",
+            label: "Medewerker spreken..",
+            message: "Ik wil een medewerker spreken",
+          },
+          {
+            type: "message",
+            label: "Retourneren..",
+            message: "Ik wil een retourneren",
+          },
         ],
       },
     },
@@ -619,9 +646,7 @@ export default function App() {
     // Extract directly from raw messages array (not displayMessages which filters out products/checkout)
     const messagesWithFrontendData = messages.filter(
       (msg: any) =>
-        (msg._productMeta || msg._checkoutData) &&
-        msg.id &&
-        msg._productGroupId
+        (msg._productMeta || msg._checkoutData) && msg.id && msg._productGroupId
     );
 
     // Group by productGroupId first
@@ -634,7 +659,7 @@ export default function App() {
           type: undefined,
         };
       }
-      
+
       // Handle product messages
       if (msg._productMeta) {
         acc[groupId].products.push({
@@ -642,12 +667,12 @@ export default function App() {
           productMeta: msg._productMeta,
         });
       }
-      
+
       // Handle checkout messages
       if (msg._checkoutData) {
         acc[groupId].checkout = msg._checkoutData;
       }
-      
+
       // Extract type
       if (msg._productGroupType) {
         acc[groupId].type = msg._productGroupType;
@@ -656,25 +681,24 @@ export default function App() {
     }, {} as Record<string, { products: Array<{ id: string; productMeta: any }>; checkout?: any; type?: string }>);
 
     // Return all groups (no validation check needed)
-    return Object.entries(grouped)
-      .map(([groupId, group]: [string, any]) => {
-        const result: SourceGroup = {
-          groupId,
-          type: group.type,
-        };
-        
-        // Add products if they exist
-        if (group.products.length > 0) {
-          result.products = group.products;
-        }
-        
-        // Add checkout if it exists
-        if (group.checkout) {
-          result.checkout = group.checkout;
-        }
-        
-        return result;
-      });
+    return Object.entries(grouped).map(([groupId, group]: [string, any]) => {
+      const result: SourceGroup = {
+        groupId,
+        type: group.type,
+      };
+
+      // Add products if they exist
+      if (group.products.length > 0) {
+        result.products = group.products;
+      }
+
+      // Add checkout if it exists
+      if (group.checkout) {
+        result.checkout = group.checkout;
+      }
+
+      return result;
+    });
   }, [messages]);
 
   /* -------------------- Persist and manage sources -------------------- */
@@ -686,7 +710,8 @@ export default function App() {
   }, [sourceMessages]);
 
   // Use persisted sources to keep them visible even when new messages don't have sources
-  const displaySources = sourceMessages.length > 0 ? sourceMessages : persistedSources;
+  const displaySources =
+    sourceMessages.length > 0 ? sourceMessages : persistedSources;
 
   /* -------------------- Auto-scroll when sources expand -------------------- */
   const prevSourcesLengthRef = useRef(0);
@@ -698,7 +723,7 @@ export default function App() {
     if (currentLength > prevLength) {
       // Expand sources when new data arrives
       setIsSourcesCollapsed(false);
-      
+
       // Wait for Sources component's expand animation to complete (300ms) + buffer
       setTimeout(() => {
         messagesRef.current?.scrollToBottom();
@@ -713,7 +738,8 @@ export default function App() {
     (messageId: string) => {
       // Find the product message in the raw messages array (not checkout)
       const productMessage = messages.find(
-        (msg: any) => msg.id === messageId && msg._productMeta && !msg._checkoutData
+        (msg: any) =>
+          msg.id === messageId && msg._productMeta && !msg._checkoutData
       );
 
       if (productMessage?._productGroupId) {
@@ -761,6 +787,8 @@ export default function App() {
     setIsValidating(false);
     // Note: Don't reset sendFn - StreamingChat keeps the same function reference
     setIsLoadingThread(false);
+    // Focus on input for new chat
+    inputRef.current?.focus();
   };
 
   if (isServeLoading || !serveData) {
@@ -787,16 +815,15 @@ export default function App() {
         isLoadingThread={isLoadingThread}
       />
 
-
       {/* Disclaimer shown only when chat not started and not loading thread */}
       {!chatStarted && !isLoadingThread && (
-        <div className="px-4 py-1.5 text-center text-xs text-gray-600 flex flex-col gap-1.5">
-          <p className="leading-6 m-0">
+        <div className="w-[80%] self-center px-4 py-1.5 text-center text-xs text-gray-500 flex flex-col gap-1.5">
+          <p className="leading-4 m-0">
             Alle gegevens die je hier achterlaat kunnen uitsluitend worden
-            ingezien door de klantenservice van {serveData.name} en door Soof
-            AI, om de werking van de chatbot te verbeteren.
+            ingezien door de klantenservice van {serveData.name} en door
+            Laintern, om de werking van de agent te verbeteren.
           </p>
-          <p className="leading-6 m-0">
+          <p className="leading-4 m-0">
             Meer informatie vind je in de{" "}
             <a
               href="https://soof.ai/privacy-policy"
@@ -807,8 +834,8 @@ export default function App() {
               Privacy Policy
             </a>
           </p>
-          <p className="leading-6 m-0">
-            Soof AI kan fouten maken. Controleer belangrijke informatie.
+          <p className="leading-4 m-0">
+            Laintern kan fouten maken. Controleer belangrijke informatie.
           </p>
         </div>
       )}
@@ -817,7 +844,7 @@ export default function App() {
         {/* Validation indicator - overlays above Sources */}
         {isValidating && (
           <div className="absolute -top-[25px] left-0 right-0 z-20 py-0.5 mx-8 border border-b-0 border-green-100 rounded-t-lg bg-green-50/80 backdrop-blur-sm animate-fade-in flex justify-center pointer-events-none">
-            <div 
+            <div
               className="inline-flex items-center gap-2 text-xs text-green-700 cursor-help group relative pointer-events-auto"
               title="We controleren of alle gezondheidsclaims voldoen aan de NVWA-richtlijnen"
             >
@@ -825,28 +852,31 @@ export default function App() {
                 <div className="absolute inset-0 rounded-full border-2 border-green-300 border-t-green-600 animate-spin"></div>
               </div>
               <span>Bericht checken...</span>
-              
+
               {/* Tooltip */}
               <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
                 <div className="font-medium mb-1">Wat checken we?</div>
                 <div className="text-gray-300">
-                  We controleren of alle gezondheidsclaims in het bericht voldoen aan de officiële NVWA-richtlijnen voor voedingssupplementen.
+                  We controleren of alle gezondheidsclaims in het bericht
+                  voldoen aan de officiële NVWA-richtlijnen voor
+                  voedingssupplementen.
                 </div>
                 <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
               </div>
             </div>
           </div>
         )}
-        
+
         {/* Sources component - displays frontendData components in a carousel */}
-        <Sources 
-          messages={displaySources} 
+        <Sources
+          messages={displaySources}
           onNavigate={handleSourceNavigate}
           isCollapsed={isSourcesCollapsed}
           onToggleCollapse={setIsSourcesCollapsed}
         />
 
         <Input
+          ref={inputRef}
           onSend={handleSend}
           disableSend={
             !canStream ||

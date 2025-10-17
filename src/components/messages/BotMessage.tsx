@@ -314,8 +314,8 @@ export default function BotMessage({
               )}
               
               {/* Render label and description for optionsData */}
-              {optionsConfig && (
-                <div className="px-2 flex flex-col gap-2 mt-2">
+              {optionsConfig && optionsConfig.label && (
+                <div className="px-2 flex flex-col gap-2 mb-4">
                   {optionsConfig.label && (
                     <h3 className="text-sm font-semibold text-gray-900 m-0">
                       {applyParams(optionsConfig.label)}

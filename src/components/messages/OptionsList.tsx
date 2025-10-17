@@ -76,13 +76,17 @@ const OptionsList: React.FC<OptionsListProps> = ({
   }, [optionItems, parameters]);
 
   if (!showOptions || displayOptions.length === 0) return null;
-  
+
   // Helper function to get button classes based on variant
-  const getButtonClasses = (variant: "ai" | "primary" | "secondary", baseClasses: string) => {
+  const getButtonClasses = (
+    variant: "ai" | "primary" | "secondary",
+    baseClasses: string
+  ) => {
     const variantClasses = {
       ai: "bg-gray-600 text-white hover:bg-gray-700",
       primary: "bg-blue-600 text-white hover:bg-blue-700",
-      secondary: "bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300",
+      secondary:
+        "bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300",
     };
     return `${baseClasses} ${variantClasses[variant]}`;
   };
@@ -132,8 +136,8 @@ const OptionsList: React.FC<OptionsListProps> = ({
         startXRef.current = e.pageX - el.offsetLeft;
         scrollLeftRef.current = el.scrollLeft;
         dragDistanceRef.current = 0;
-        el.style.cursor = 'grabbing';
-        el.style.userSelect = 'none';
+        el.style.cursor = "grabbing";
+        el.style.userSelect = "none";
       };
 
       const onMouseMove = (e: MouseEvent) => {
@@ -148,8 +152,8 @@ const OptionsList: React.FC<OptionsListProps> = ({
       const onMouseUpOrLeave = () => {
         if (isDraggingRef.current) {
           isDraggingRef.current = false;
-          el.style.cursor = 'grab';
-          el.style.userSelect = '';
+          el.style.cursor = "grab";
+          el.style.userSelect = "";
         }
       };
 
@@ -161,18 +165,18 @@ const OptionsList: React.FC<OptionsListProps> = ({
         }
       };
 
-      el.addEventListener('mousedown', onMouseDown);
-      el.addEventListener('mousemove', onMouseMove);
-      el.addEventListener('mouseup', onMouseUpOrLeave);
-      el.addEventListener('mouseleave', onMouseUpOrLeave);
-      el.addEventListener('click', onClick, true); // Use capture phase
+      el.addEventListener("mousedown", onMouseDown);
+      el.addEventListener("mousemove", onMouseMove);
+      el.addEventListener("mouseup", onMouseUpOrLeave);
+      el.addEventListener("mouseleave", onMouseUpOrLeave);
+      el.addEventListener("click", onClick, true); // Use capture phase
 
       return () => {
-        el.removeEventListener('mousedown', onMouseDown);
-        el.removeEventListener('mousemove', onMouseMove);
-        el.removeEventListener('mouseup', onMouseUpOrLeave);
-        el.removeEventListener('mouseleave', onMouseUpOrLeave);
-        el.removeEventListener('click', onClick, true);
+        el.removeEventListener("mousedown", onMouseDown);
+        el.removeEventListener("mousemove", onMouseMove);
+        el.removeEventListener("mouseup", onMouseUpOrLeave);
+        el.removeEventListener("mouseleave", onMouseUpOrLeave);
+        el.removeEventListener("click", onClick, true);
       };
     }, []);
 
@@ -191,14 +195,21 @@ const OptionsList: React.FC<OptionsListProps> = ({
           {displayOptions.map((option, index) => (
             <button
               key={index}
-              onClick={() => onOptionClick?.(option.value || "", (option as any).requiredTool)}
+              onClick={() =>
+                onOptionClick?.(
+                  option.value || "",
+                  (option as any).requiredTool
+                )
+              }
               className={getButtonClasses(
                 (option as any).variant,
                 "flex-none min-w-[120px] h-9 px-3 py-2 flex items-center rounded text-xs cursor-pointer transition-colors"
               )}
             >
               {(option as any).variant === "ai" && (
-                <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+                <SoofTwinkleIcon
+                  style={{ marginRight: 4, verticalAlign: "middle" }}
+                />
               )}
               {option.label}
             </button>
@@ -216,7 +227,7 @@ const OptionsList: React.FC<OptionsListProps> = ({
       </div>
     );
   }
-  
+
   // Handle vertical layout
   if (optionsLayout === "vertical") {
     return (
@@ -224,14 +235,18 @@ const OptionsList: React.FC<OptionsListProps> = ({
         {displayOptions.map((option, index) => (
           <button
             key={index}
-            onClick={() => onOptionClick?.(option.value || "", (option as any).requiredTool)}
+            onClick={() =>
+              onOptionClick?.(option.value || "", (option as any).requiredTool)
+            }
             className={getButtonClasses(
               (option as any).variant,
               "w-full min-w-[120px] justify-start text-left h-9 px-3 py-2 text-base rounded cursor-pointer transition-colors flex items-center"
             )}
           >
             {(option as any).variant === "ai" && (
-              <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+              <SoofTwinkleIcon
+                style={{ marginRight: 4, verticalAlign: "middle" }}
+              />
             )}
             {option.label}
           </button>
@@ -239,21 +254,25 @@ const OptionsList: React.FC<OptionsListProps> = ({
       </div>
     );
   }
-  
+
   // Default layout
   return (
-    <div className="flex flex-row flex-wrap justify-start gap-1.5">
+    <div className="flex flex-row flex-wrap justify-start gap-2">
       {displayOptions.map((option, index) => (
         <button
           key={index}
-          onClick={() => onOptionClick?.(option.value || "", (option as any).requiredTool)}
+          onClick={() =>
+            onOptionClick?.(option.value || "", (option as any).requiredTool)
+          }
           className={getButtonClasses(
             (option as any).variant,
-            "w-fit h-6 px-2.5 py-1.5 rounded text-xs cursor-pointer transition-colors flex items-center"
+            "w-fit h-8 px-3 py-2 rounded text-sm cursor-pointer transition-colors flex items-center"
           )}
         >
           {(option as any).variant === "ai" && (
-            <SoofTwinkleIcon style={{ marginRight: 4, verticalAlign: "middle" }} />
+            <SoofTwinkleIcon
+              style={{ marginRight: 4, verticalAlign: "middle" }}
+            />
           )}
           {option.label}
         </button>
@@ -262,4 +281,4 @@ const OptionsList: React.FC<OptionsListProps> = ({
   );
 };
 
-export default OptionsList; 
+export default OptionsList;

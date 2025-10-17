@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 
 interface InputProps {
   onSend: (text: string) => void;
-  disableInput?: boolean; // Disable typing in the input field
   disableSend?: boolean; // Disable sending messages
   theme: {
     primaryBackground: string;
@@ -18,15 +17,31 @@ interface InputProps {
   isMobile: boolean;
 }
 
-export default function Input({
-  onSend,
-  disableInput = false,
-  disableSend = false,
-  theme,
-  isMobile,
-}: InputProps) {
+export interface InputRef {
+  focus: () => void;
+}
+
+const Input = forwardRef<InputRef, InputProps>(
+  (
+    {
+      onSend,
+      disableSend = false,
+      isMobile,
+    },
+    ref
+  ) => {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const maxChars = 500;
+  const limitReached = text.length > maxChars;
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    },
+  }));
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
@@ -42,8 +57,24 @@ export default function Input({
     adjustTextareaHeight();
   }, [text, isMobile]);
 
+  // Auto-focus on mount and when text is cleared (after sending)
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [text === "", isMobile]);
+
+  // Also focus when component mounts
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+    const newText = e.target.value;
+    // Allow any character count, just track it
+    setText(newText);
   };
 
   const handleSend = (e: FormEvent) => {
@@ -59,22 +90,21 @@ export default function Input({
     <>
       <form
         onSubmit={handleSend}
-        className={`flex items-center gap-1.5 p-2 border border-gray-300 rounded-xl transition-all ${
-          isMobile ? "max-h-[8rem]" : "max-h-[7.5rem]"
-        }`}
+        className={`flex items-center gap-1.5 p-2 rounded-xl transition-all ${
+          limitReached ? "border border-red-400" : "border border-gray-300"
+        } ${isMobile ? "max-h-[8rem]" : "max-h-[7.5rem]"}`}
       >
         <textarea
           ref={textareaRef}
           rows={1}
           onChange={handleInputChange}
           value={text}
-          disabled={disableInput}
           placeholder="Waar ben je naar op zoek?"
           name="chat-input"
           style={{ resize: 'none' }}
           className={`w-full shadow-sm resize-none overflow-y-auto scrollbar-subtle ${
             isMobile ? "text-base max-h-[6rem]" : "text-[1em] max-h-[5.5rem]"
-          } bg-white text-black focus:outline-none focus:border-blue-600 disabled:bg-gray-100 leading-[1.375]`}
+          } focus:outline-none focus:border-blue-600 disabled:bg-gray-100 leading-[1.375]`}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -84,9 +114,9 @@ export default function Input({
         />
         <button
           type="submit"
-          disabled={disableSend || !text.trim()}
+          disabled={disableSend || !text.trim() || limitReached}
           className={`flex items-center justify-center self-end p-2 border-none rounded-md cursor-pointer transition-colors disabled:cursor-not-allowed ${
-            disableSend ? "bg-gray-100" : "bg-blue-600 text-white"
+            disableSend || limitReached ? "bg-gray-100" : "bg-blue-600 text-white"
           }`}
         >
           <svg
@@ -105,6 +135,17 @@ export default function Input({
           </svg>
         </button>
       </form>
+      {limitReached && (
+        <div className="px-2 pt-1 text-xs text-red-600">
+          {text.length}/{maxChars} - Je bericht is te lang. Kort je bericht in.
+        </div>
+      )}
     </>
   );
-}
+  }
+);
+
+Input.displayName = "Input";
+
+export default Input;
+
