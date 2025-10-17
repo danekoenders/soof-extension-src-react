@@ -9,6 +9,7 @@ export interface SoofConfig {
   agentName: string;
   language?: string;
   primaryColor?: string;
+  secondaryColor?: string;
   showWelcomeMessage?: boolean;
   height?: string;
   width?: string;
@@ -16,11 +17,6 @@ export interface SoofConfig {
 
 // Expose a global that your component can call once its window is in the DOM
 (window as any).__lainternAgentMount = (shadowRoot: ShadowRoot, config: SoofConfig) => {
-  // Config is now passed from Liquid files with all settings
-  
-  // remove any old style/mount
-  shadowRoot.querySelector("style[data-laintern-agent]")?.remove();
-  shadowRoot.querySelector('[data-laintern-agent-overlay]')?.remove();
 
   // Find existing mount point in the chat window (created by renderBase)
   const existingMountPoint = shadowRoot.getElementById("laintern-agent-react-root");
@@ -45,7 +41,7 @@ export interface SoofConfig {
     // Build overlay using Tailwind classes for widget
     const overlay = document.createElement('div');
     overlay.setAttribute('data-laintern-agent-overlay', '');
-    overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-start z-[999999]';
+    overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-center z-[999999]';
 
     // Utility: close overlay
     const closeOverlay = () => {
@@ -58,7 +54,7 @@ export interface SoofConfig {
     };
 
     // Style the mount point directly
-    existingMountPoint.className = 'w-full max-w-[640px] mx-4 animate-slide-in-chat';
+    existingMountPoint.className = 'w-full h-[73vh] max-w-[640px] animate-slide-in-chat rounded-2xl';
 
     overlay.appendChild(existingMountPoint);
     
@@ -68,10 +64,13 @@ export interface SoofConfig {
     });
     
     shadowRoot.appendChild(overlay);
-  } else {
+  } else if (config.type === 'embedded') {
     // Embedded: no overlay, mount directly
-    existingMountPoint.className = 'w-full h-full';
+    existingMountPoint.className = 'w-full h-full max-w-[640px]';
     // Mount point is already in shadow DOM from renderBase()
+  } else {
+    console.error('Invalid configuration type');
+    return;
   }
 
   // mount React in the existing mount point

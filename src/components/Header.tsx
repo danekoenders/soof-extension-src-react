@@ -1,27 +1,25 @@
 interface HeaderProps {
   shopName: string;
   chatbotName: string;
-  theme: {
-    primaryBackground: string;
-    secondaryBackground: string;
-    tertiaryAccent: string;
-  };
+  primaryColor?: string;
+  secondaryColor?: string;
   onRestartChat: () => void;
 }
 
 export default function Header({
   shopName,
   chatbotName,
-  theme,
+  primaryColor,
+  secondaryColor,
   onRestartChat,
 }: HeaderProps) {
   const headerGradient = {
-    background: `linear-gradient(130deg, ${theme.primaryBackground} 50%, ${theme.secondaryBackground} 100%)`,
+    background: `linear-gradient(130deg, ${primaryColor || '#0040c0'} 50%, ${secondaryColor || '#ffffff'} 100%)`,
   };
 
   return (
     <div
-      className="px-4 min-h-[70px] text-white rounded-t-2xl flex flex-row items-center justify-between leading-tight text-lg"
+      className="px-4 min-h-[70px] text-white flex flex-row items-center justify-between leading-tight text-lg"
       style={headerGradient}
     >
       <div className="flex flex-col">
@@ -35,7 +33,7 @@ export default function Header({
 
       <button
         onClick={onRestartChat}
-        className="bg-gray-50 hover:bg-gray-200 w-fit h-fit px-3 py-1 rounded border border-gray-700 text-gray-700 text-xs cursor-pointer transition-colors"
+        className="bg-white/20 hover:bg-white/30 backdrop-blur-sm w-fit h-fit px-3 py-1.5 rounded-lg text-white text-xs font-medium cursor-pointer transition-all duration-200 hover:shadow-md"
       >
         Nieuwe chat
       </button>

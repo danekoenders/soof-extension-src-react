@@ -142,40 +142,6 @@
   text-size-adjust: 100%;
 }
 
-#laintern-agent-react-root {
-  margin: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  flex-direction: column;
-  overflow: hidden; /* Prevent double scrollbars */
-}
-
-/* Theme variables - placeholder/default values for dynamic theming */
-:root {
-  --background: #ffffff;
-  --primary-background: #0040c0;
-  --secondary-background: #ffffff;
-  --bot-chat-background: #f5f8fb;
-  --user-chat-background: #dcdcdc;
-  --options-background: #363636;
-  --disabled-background: #eeeeee;
-  --primary-border: #e3e3e376;
-  --secondary-border: #cccccc;
-  --primary-text: #000000;
-  --secondary-text: #ffffff;
-  --accent-text: #0081b1;
-  --box-shadow: 0 1px 6px 2px rgb(0 0 0 / 20%);
-  --primary-accent: #0081b1;
-  --secondary-accent: #0054ff;
-  --tertiary-accent: #2f2f2f;
-  --error-accent-color: #ff4d4f;
-  --dull-gray-accent-color: #f0f0f0;
-}
-
-/* Legacy CSS for any remaining non-converted components */
-
 /* Tailwind utilities for link styling in markdown content */
 .message a {
   @apply text-blue-600 no-underline;

@@ -7,11 +7,12 @@
     <title>Vite + React + TS</title>
   </head>
   <body>
-    <div id="soof-extension-bundle-root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
     <soof-chat
       local-language="{{ localization.language.iso_code }}"
+      primary-color="rgb(26 50 99)"
+      secondary-color="rgb(76 76 94)"
     ></soof-chat>
 
     <script type="module" defer>
@@ -29,20 +30,6 @@
           this.renderBase();
         }
 
-        loadBundle() {
-          if (this.bundleLoaded) return Promise.resolve();
-          this.bundleLoaded = true;
-          return new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = `{{ 'soof-extension.js' | asset_url }}`;
-            script.type = "module";
-            script.defer = true;
-            script.onload = () => resolve();
-            script.onerror = (err) => reject(err);
-            document.head.appendChild(script);
-          });
-        }
-
         handleButtonClick() {
           if (!this.isOpen) {
             this.openChatWindow();
@@ -55,13 +42,16 @@
 
         async openChatWindow() {
           if (!this.isOpen) {
-            await this.loadBundle();
+            // await this.loadBundle();
             this.isOpen = true;
             this.renderBase();
 
-            // Now that renderBase has placed <div id="soof-chat-react-root">
-            if (window.__soofMount) {
-              window.__soofMount(this.shadowRoot);
+            // Now that renderBase has placed <div id="laintern-agent-react-root">
+            const config = this.getConfig();
+            if (window.__lainternAgentMount) {
+              window.__lainternAgentMount(this.shadowRoot, config);
+            } else {
+              console.error("Could not find __lainternAgentMount on window");
             }
           }
         }
@@ -73,10 +63,17 @@
           }
         }
 
+        getConfig() {
+          return {
+            type: "widget",
+            language: "en",
+            primaryColor: "rgb(26 50 99)",
+            secondaryColor: "rgb(76 76 94)",
+          };
+        }
+
         renderBase() {
-          // Clear shadow DOM
           this.shadowRoot.innerHTML = "";
-          // Styles for button and window
           const style = document.createElement("style");
           style.textContent = `
       .soof-chat-btn {
@@ -95,7 +92,6 @@
         cursor: pointer;
         border: none;
         transition: box-shadow 0.2s;
-        font-size: 16px;
       }
       .soof-chat-btn:hover {
         box-shadow: 0 4px 24px rgba(0,0,0,0.22);
@@ -117,7 +113,7 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        animation: soof-fade-in 0.2s;
+        animation: laintern-agent-fade-in 0.2s;
       }
       .soof-chat-close {
         position: absolute;
@@ -129,13 +125,7 @@
         cursor: pointer;
         z-index: 2;
       }
-      #soof-chat-react-root {
-        flex: 1;
-        width: 100%;
-        height: 100%;
-        overflow: auto;
-      }
-      @keyframes soof-fade-in {
+      @keyframes laintern-agent-fade-in {
         from { opacity: 0; transform: translateY(40px); }
         to { opacity: 1; transform: translateY(0); }
       }
@@ -171,7 +161,7 @@
             
             // React mount point
             this.reactMount = document.createElement("div");
-            this.reactMount.id = "soof-chat-react-root";
+            this.reactMount.id = "laintern-agent-react-root";
             this.shadowRoot.appendChild(this.reactMount);
           }
           

@@ -84,9 +84,9 @@ const OptionsList: React.FC<OptionsListProps> = ({
   ) => {
     const variantClasses = {
       ai: "bg-gray-600 text-white hover:bg-gray-700",
-      primary: "bg-blue-600 text-white hover:bg-blue-700",
+      primary: "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-300 hover:border-blue-400 hover:shadow-sm font-medium",
       secondary:
-        "bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300",
+        "bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 hover:shadow-sm font-medium",
     };
     return `${baseClasses} ${variantClasses[variant]}`;
   };

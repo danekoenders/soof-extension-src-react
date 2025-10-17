@@ -70,7 +70,6 @@ export default function App({ config }: AppProps) {
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
   const [isValidating, setIsValidating] = useState(false);
 
-
   // Ref for Messages component to enable scrolling to specific messages
   const messagesRef = useRef<MessagesRef>(null);
   const inputRef = useRef<InputRef>(null);
@@ -544,8 +543,7 @@ export default function App({ config }: AppProps) {
   const WELCOME_MESSAGE: Message = {
     role: "assistant",
     type: "normal",
-    content:
-      `Hey! 👋 Ik ben ${config.agentName}, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!`,
+    content: `Hey! 👋 Ik ben ${config.agentName}, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!`,
     optionsData: {
       type: "custom",
       custom: {
@@ -737,15 +735,16 @@ export default function App({ config }: AppProps) {
   };
 
   return (
-    <div className="border-solid font-roboto bg-white shadow-lg flex flex-col text-[16px] leading-[20px] w-full h-[73vh] rounded-2xl overflow-hidden overscroll-contain">
+    <div
+      className={`${
+        config.type === "widget" ? "rounded-2xl" : ""
+      } border-solid font-roboto bg-white shadow-lg flex flex-col text-[16px] leading-[20px] w-full h-full overflow-hidden overscroll-contain`}
+    >
       <Header
         shopName="Klantenservice"
         chatbotName={config.agentName}
-        theme={{
-          primaryBackground: "#0040c0",
-          secondaryBackground: "#ffffff",
-          tertiaryAccent: "#2f2f2f",
-        }}
+        primaryColor={config.primaryColor}
+        secondaryColor={config.secondaryColor}
         onRestartChat={handleNewChat}
       />
 
@@ -758,25 +757,20 @@ export default function App({ config }: AppProps) {
 
       {/* Disclaimer shown only when chat not started and not loading thread */}
       {!chatStarted && !isLoadingThread && (
-        <div className="w-[80%] self-center px-4 py-1.5 text-center text-xs text-gray-500 flex flex-col gap-1.5">
+        <div className="w-[80%] self-center px-4 py-4 text-center text-xs text-gray-500 flex flex-col gap-2">
           <p className="leading-4 m-0">
-            Alle gegevens die je hier achterlaat kunnen uitsluitend worden
-            ingezien door de klantenservice en door
-            Laintern, om de werking van de agent te verbeteren.
+            Laintern kan fouten maken. Controleer belangrijke informatie.
           </p>
           <p className="leading-4 m-0">
-            Meer informatie vind je in de{" "}
+            Lees alles over hoe we je gegevens verwerken in onze{" "}
             <a
-              href="https://soof.ai/privacy-policy"
+              href="https://laintern.com/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600"
             >
               Privacy Policy
             </a>
-          </p>
-          <p className="leading-4 m-0">
-            Laintern kan fouten maken. Controleer belangrijke informatie.
           </p>
         </div>
       )}
@@ -855,7 +849,7 @@ export default function App({ config }: AppProps) {
 
         {/* Footer */}
         <div className="px-1 pt-1 text-[11px] text-gray-400 flex items-center justify-between">
-          <span>Powered by Laintern</span>
+          <a href="https://laintern.com" target="_blank" rel="noopener noreferrer" >Powered by <span className="text-blue-900">Laintern</span></a>
           <span>protected by reCAPTCHA</span>
         </div>
       </div>
