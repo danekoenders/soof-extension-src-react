@@ -72,14 +72,38 @@ export default function StreamingChat({
   }, [apiBase, jwt, localLanguage, threadToken]);
 
   useEffect(() => {
+    // Initialize from initialMessages if empty
     if (messagesRef.current.length === 0 && initialMessages.length > 0) {
       messagesRef.current = [...initialMessages];
+      onMessages(messagesRef.current);
+    }
+    // Sync when initialMessages updates with thread messages (after loading)
+    // If messagesRef only has placeholder/queued messages, replace with thread messages
+    else if (initialMessages.length > 0 && messagesRef.current.length > 0) {
+      // Check if messagesRef only has placeholder/queued messages (no real thread messages)
+      const hasOnlyPlaceholders = messagesRef.current.every(msg => 
+        msg.id?.startsWith('queued-') || 
+        msg.id?.startsWith('placeholder-') ||
+        (msg as any)._isPlaceholder ||
+        (msg as any)._isQueued
+      );
+      
+      // If we only have placeholders but initialMessages has real thread history, sync it
+      if (hasOnlyPlaceholders && initialMessages.some(m => 
+        (m.type === "human" || m.type === "ai") && 
+        !m.id?.startsWith('queued-') && 
+        !m.id?.startsWith('placeholder-')
+      )) {
+        messagesRef.current = [...initialMessages];
+        onMessages(messagesRef.current);
+      }
     }
     // Clear messages when initialMessages is explicitly emptied (new chat)
     if (initialMessages.length === 0 && messagesRef.current.length > 0) {
       messagesRef.current = [];
+      onMessages([]);
     }
-  }, [initialMessages]);
+  }, [initialMessages, onMessages]);
 
   useEffect(() => {
     const sendMessage = async (text: string, requiredTool?: string) => {

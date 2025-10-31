@@ -73,6 +73,15 @@ export interface SoofConfig {
     return;
   }
 
+  // Initialize __directMessageToAgent as a placeholder that will queue messages
+  // until the React app mounts and replaces it
+  const messageQueue: string[] = [];
+  (window as any).__lainternAgentMessageQueue = messageQueue;
+  
+  (window as any).__directMessageToAgent = (message: string) => {
+    messageQueue.push(message);
+  };
+
   // mount React in the existing mount point
   createRoot(existingMountPoint).render(
     <StrictMode>

@@ -13,8 +13,8 @@ const defaultState: ChatSessionState = {
   threadToken: null,
 };
 
-const JWT_KEY = '__soof-jwt';
-const THREAD_KEY = '__soof-thread-token';
+const JWT_KEY = '__laintern-jwt';
+const THREAD_KEY = '__laintern-thread';
 
 export const useChatSession = () => {
   const [state, setState] = useState<ChatSessionState>(defaultState);

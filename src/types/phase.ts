@@ -10,6 +10,9 @@ export interface PhaseConfig {
 // The key can be either a phase type or a specific function name
 export const PHASE_MESSAGES: Record<string, PhaseConfig> = {
   // Core phases
+  initializing: {
+    displayMessage: "💬 Chat aanmaken",
+  },
   thinking: {
     displayMessage: "🤔 Denken",
   },

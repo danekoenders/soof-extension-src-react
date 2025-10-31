@@ -69,6 +69,10 @@ export default function App({ config }: AppProps) {
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
   const [isValidating, setIsValidating] = useState(false);
+  // Message queue for messages sent before session is ready
+  const [queuedMessages, setQueuedMessages] = useState<Array<{ text: string; requiredTool?: string }>>([]);
+  // Track if we're processing queued messages to prevent welcome message flash
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
   // Ref for Messages component to enable scrolling to specific messages
   const messagesRef = useRef<MessagesRef>(null);
@@ -133,11 +137,81 @@ export default function App({ config }: AppProps) {
   const hasValidSession = chatSession.active && !!chatSession.jwt;
   const canStream = hasValidSession; // threadToken optional on first message
 
+  // Process queued messages once session and thread (if applicable) are ready
+  useEffect(() => {
+    // Don't process if thread is still loading (wait for it to complete first)
+    const threadLoading = chatSession.threadToken && isLoadingThread;
+    
+    if (hasValidSession && 
+        !threadLoading && 
+        queuedMessages.length > 0 && 
+        sendFn && 
+        sendFn.toString() !== (() => {}).toString()) {
+      // Mark that we're processing the queue (prevents welcome message flash)
+      setIsProcessingQueue(true);
+      
+      // Process all queued messages (sendFn will add them to messages normally)
+      const messagesToProcess = [...queuedMessages];
+      
+      // Small delay to ensure thread messages are fully loaded and StreamingChat is synced
+      setTimeout(() => {
+        messagesToProcess.forEach(({ text, requiredTool }) => {
+          sendFn(text, requiredTool);
+        });
+        
+        // Clear queue after sending (messages are now in the normal messages array)
+        setQueuedMessages([]);
+        
+        // Wait a bit longer before clearing the processing flag to ensure messages are rendered
+        setTimeout(() => {
+          setIsProcessingQueue(false);
+        }, 200);
+      }, 100);
+    }
+  }, [hasValidSession, isLoadingThread, chatSession.threadToken, queuedMessages, sendFn]);
+
+  // Combine normal messages with queued messages for rendering
+  const combinedMessages = useMemo(() => {
+    const combined: any[] = [...messages];
+    
+    // Add queued messages with initializing phase indicator
+    if (queuedMessages.length > 0) {
+      // Add each queued message as a user message first
+      queuedMessages.forEach(({ text }, index) => {
+        combined.push({
+          id: `queued-user-${Date.now()}-${index}`,
+          type: "human",
+          content: text,
+          _isQueued: true, // Mark so we can identify it
+        });
+      });
+      
+      // Add initializing phase indicator after user messages (if we don't already have one)
+      const hasInitPhase = combined.some(msg => 
+        msg.type === "phase" && (msg as any)._phase === "initializing"
+      );
+      
+      if (!hasInitPhase) {
+        combined.push({
+          id: `queued-init-${Date.now()}`,
+          type: "phase",
+          _phase: "initializing",
+          _phaseMessage: "💬 Chat aanmaken",
+          _isPlaceholder: true,
+          _isQueuedPhase: true, // Mark so we can remove it when queue is processed
+        });
+      }
+    }
+    
+    return combined;
+  }, [messages, queuedMessages]);
+
   const mappedMessages: Message[] = useMemo(() => {
     const processed: any[] = [];
     let pendingProductMeta: any = null;
 
-    for (const msg of messages as any[]) {
+    // Use combinedMessages instead of messages for rendering
+    for (const msg of combinedMessages as any[]) {
       if (msg.type === "tool") {
         if ((msg as any).name === "product_info") {
           if (typeof msg.content === "string") {
@@ -268,7 +342,7 @@ export default function App({ config }: AppProps) {
 
       return [];
     });
-  }, [messages]);
+  }, [combinedMessages]);
 
   // Hydrate transcript from backend when we have a threadToken
   useEffect(() => {
@@ -524,20 +598,72 @@ export default function App({ config }: AppProps) {
   }, [chatSession.threadToken]);
 
   /* ------------------------------ 5. Handlers ----------------------------- */
-  const handleSend = (text: string, requiredTool?: string) => {
-    if (!hasValidSession || isSessionLoading) return;
-    if (!sendFn || sendFn.toString() === (() => {}).toString()) return;
-    // Collapse sources when sending a new message
+  const handleSend = useCallback((text: string, requiredTool?: string) => {
+    if (!text.trim()) return;
+    
+    // If session is not ready, queue the message (it will be shown via combinedMessages)
+    // Also queue if thread is loading (to avoid sending before thread history is loaded)
+    const shouldQueue = !hasValidSession || 
+                        isSessionLoading || 
+                        (chatSession.threadToken && isLoadingThread) ||
+                        !sendFn || 
+                        sendFn.toString() === (() => {}).toString();
+    
+    if (shouldQueue) {
+      // Add to queue (will be rendered via combinedMessages)
+      setQueuedMessages(prev => [...prev, { text, requiredTool }]);
+      setIsSourcesCollapsed(true);
+      return;
+    }
+    
+    // Session and thread (if applicable) are ready, send immediately
     setIsSourcesCollapsed(true);
     sendFn(text, requiredTool);
-  };
+  }, [hasValidSession, isSessionLoading, isLoadingThread, chatSession.threadToken, sendFn]);
+
+  // Expose directMessage function globally for external calls (e.g., from liquid file)
+  useEffect(() => {
+    // Process any queued messages from before React mounted
+    const queue = (window as any).__lainternAgentMessageQueue;
+    if (queue && Array.isArray(queue) && queue.length > 0) {
+      const queuedMessages = [...queue];
+      queue.length = 0; // Clear queue
+      
+      // Process queued messages
+      queuedMessages.forEach(msg => {
+        handleSend(msg);
+      });
+    }
+    
+    // Replace placeholder with real function
+    (window as any).__directMessageToAgent = (message: string) => {
+      handleSend(message);
+    };
+    
+    // Also expose the setter function for compatibility
+    (window as any).__setDirectMessageHandler = (handler: (message: string) => void) => {
+      (window as any).__directMessageToAgent = handler;
+    };
+
+    // Cleanup on unmount
+    return () => {
+      if ((window as any).__directMessageToAgent) {
+        delete (window as any).__directMessageToAgent;
+      }
+      if ((window as any).__setDirectMessageHandler) {
+        delete (window as any).__setDirectMessageHandler;
+      }
+    };
+  }, [handleSend]);
 
   /* ------------------------------- 6. Render ------------------------------ */
 
   /* -------------------------- Derived flags --------------------------- */
   const chatStarted = useMemo(() => {
-    return messages.some((m) => m.type === "human");
-  }, [messages]);
+    // Check combinedMessages to include both normal and queued messages
+    // Also check if we're processing the queue to prevent welcome message flash during transition
+    return combinedMessages.some((m) => m.type === "human") || isProcessingQueue;
+  }, [combinedMessages, isProcessingQueue]);
 
   /* ---------------------- Welcome + Disclaimer ------------------------ */
   const WELCOME_MESSAGE: Message = {
@@ -814,8 +940,6 @@ export default function App({ config }: AppProps) {
           ref={inputRef}
           onSend={handleSend}
           disableSend={
-            !canStream ||
-            isSessionLoading ||
             isWaitingForSessionState ||
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
