@@ -52,8 +52,7 @@ interface AppProps {
 export default function App({ config }: AppProps) {
   /* ------------------------------- 1. State ------------------------------- */
 
-  const { chatSession, setJwt, setThreadToken } = useChatSession();
-  const [isSessionLoading, setIsSessionLoading] = useState(false);
+  const { chatSession, setSessionToken, setThreadToken } = useChatSession();
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   // const hostOrigin = useHost();
@@ -110,40 +109,12 @@ export default function App({ config }: AppProps) {
 
   // no-op: threadToken managed in hook
 
-  /* --------------------------- 2. Fetch chat token ------------------------ */
-  useEffect(() => {
-    if (chatSession.active) return;
-    setIsSessionLoading(true);
-    (async () => {
-      try {
-        const res = await fetch(`${BACKEND_BASE}/api/agent/session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ localLanguage: config.language }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.jwt)
-          throw new Error(data?.error || "Failed to start session");
-        // JWT exp is 1h. Store with TTL of 59m to be safe.
-        setJwt(data.jwt, 59 * 60 * 1000);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsSessionLoading(false);
-      }
-    })();
-  }, [chatSession.active, setJwt]);
-
-  const hasValidSession = chatSession.active && !!chatSession.jwt;
-  const canStream = hasValidSession; // threadToken optional on first message
-
   // Process queued messages once session and thread (if applicable) are ready
   useEffect(() => {
     // Don't process if thread is still loading (wait for it to complete first)
     const threadLoading = chatSession.threadToken && isLoadingThread;
-    
-    if (hasValidSession && 
-        !threadLoading && 
+    if (!threadLoading && 
+        !isWaitingForSessionState &&
         queuedMessages.length > 0 && 
         sendFn && 
         sendFn.toString() !== (() => {}).toString()) {
@@ -168,7 +139,7 @@ export default function App({ config }: AppProps) {
         }, 200);
       }, 100);
     }
-  }, [hasValidSession, isLoadingThread, chatSession.threadToken, queuedMessages, sendFn]);
+  }, [isLoadingThread, chatSession.threadToken, queuedMessages, sendFn, isWaitingForSessionState]);
 
   // Combine normal messages with queued messages for rendering
   const combinedMessages = useMemo(() => {
@@ -601,10 +572,9 @@ export default function App({ config }: AppProps) {
   const handleSend = useCallback((text: string, requiredTool?: string) => {
     if (!text.trim()) return;
     
-    // If session is not ready, queue the message (it will be shown via combinedMessages)
-    // Also queue if thread is loading (to avoid sending before thread history is loaded)
-    const shouldQueue = !hasValidSession || 
-                        isSessionLoading || 
+    // Queue the message if chat transport isn't ready yet (shown via combinedMessages)
+    // Covers waiting for session_state or thread hydration before sending.
+    const shouldQueue = isWaitingForSessionState ||
                         (chatSession.threadToken && isLoadingThread) ||
                         !sendFn || 
                         sendFn.toString() === (() => {}).toString();
@@ -619,7 +589,7 @@ export default function App({ config }: AppProps) {
     // Session and thread (if applicable) are ready, send immediately
     setIsSourcesCollapsed(true);
     sendFn(text, requiredTool);
-  }, [hasValidSession, isSessionLoading, isLoadingThread, chatSession.threadToken, sendFn]);
+  }, [isWaitingForSessionState, isLoadingThread, chatSession.threadToken, sendFn]);
 
   // Expose directMessage function globally for external calls (e.g., from liquid file)
   useEffect(() => {
@@ -957,19 +927,18 @@ export default function App({ config }: AppProps) {
           isMobile={false}
         />
 
-        {canStream && (
-          <StreamingChat
-            apiBase={BACKEND_BASE}
-            jwt={chatSession.jwt!}
-            localLanguage={config.language || "en"}
-            threadToken={chatSession.threadToken}
-            setThreadToken={(t) => setThreadToken(t)}
-            onMessages={handleMessages}
-            onSendFn={handleRegisterSendFn}
-            onWaitingForSessionState={handleWaitingForSessionState}
-            initialMessages={messages as any}
-          />
-        )}
+        <StreamingChat
+          apiBase={BACKEND_BASE}
+          sessionToken={chatSession.sessionToken}
+          localLanguage={config.language || "en"}
+          threadToken={chatSession.threadToken}
+          setThreadToken={setThreadToken}
+          setSessionToken={setSessionToken}
+          onMessages={handleMessages}
+          onSendFn={handleRegisterSendFn}
+          onWaitingForSessionState={handleWaitingForSessionState}
+          initialMessages={messages as any}
+        />
 
         {/* Footer */}
         <div className="px-1 pt-1 text-[11px] text-gray-400 flex items-center justify-between">

@@ -38,10 +38,11 @@ type SimpleMessage = {
 
 interface StreamingChatProps {
   apiBase: string; // e.g., origin for proxy or full backend origin
-  jwt: string;
+  sessionToken: string | null;
   localLanguage: string;
   threadToken: string | null;
   setThreadToken: (token: string | null) => void;
+  setSessionToken: (token: string | null, ttlMs?: number) => void;
   onMessages: (msgs: SimpleMessage[]) => void;
   onSendFn: (fn: (text: string, requiredTool?: string) => void) => void;
   initialMessages?: SimpleMessage[];
@@ -50,17 +51,23 @@ interface StreamingChatProps {
 
 export default function StreamingChat({
   apiBase,
-  jwt,
+  sessionToken,
   localLanguage,
   threadToken,
   setThreadToken,
+  setSessionToken,
   onMessages,
   onSendFn,
   initialMessages = [],
   onWaitingForSessionState,
 }: StreamingChatProps) {
   const messagesRef = useRef<SimpleMessage[]>([]);
-  const cfgRef = useRef({ apiBase, jwt, localLanguage, threadToken });
+  const cfgRef = useRef({
+    apiBase,
+    sessionToken,
+    localLanguage,
+    threadToken,
+  });
   const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
   const waitingForSessionStateRef = useRef<boolean>(false);
   const blockChangesRef = useRef<BlockChange[]>([]);
@@ -68,8 +75,8 @@ export default function StreamingChat({
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
-    cfgRef.current = { apiBase, jwt, localLanguage, threadToken };
-  }, [apiBase, jwt, localLanguage, threadToken]);
+    cfgRef.current = { apiBase, sessionToken, localLanguage, threadToken };
+  }, [apiBase, sessionToken, localLanguage, threadToken]);
 
   useEffect(() => {
     // Initialize from initialMessages if empty
@@ -131,18 +138,28 @@ export default function StreamingChat({
       onMessages(messagesRef.current);
 
       try {
-        const { apiBase: base, jwt: token, localLanguage: lang, threadToken } = cfgRef.current;
+        const {
+          apiBase: base,
+          sessionToken: token,
+          localLanguage: lang,
+          threadToken,
+        } = cfgRef.current;
         
         // Always set waiting flag when sending a message - we need to wait for session_state
         waitingForSessionStateRef.current = true;
         onWaitingForSessionState?.(true);
         
-        const body: any = {
+        const body: Record<string, any> = {
           message: text,
-          jwt: token,
           localLanguage: lang,
-          threadToken: threadToken ?? undefined,
         };
+
+        if (token) {
+          body.sessionToken = token;
+        }
+        if (threadToken) {
+          body.threadToken = threadToken;
+        }
         
         // Add requiredTool if provided
         if (requiredTool) {
@@ -390,6 +407,12 @@ export default function StreamingChat({
                 case "session_state": {
                   if (event.threadToken) {
                     setThreadToken(event.threadToken);
+                  }
+                  if ("sessionToken" in event) {
+                    setSessionToken(
+                      event.sessionToken ?? null,
+                      event.sessionTtlMs
+                    );
                   }
                   // Always clear waiting flag when session_state is received
                   // This ensures the thread has been updated on the backend
