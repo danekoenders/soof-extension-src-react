@@ -75,6 +75,101 @@ const OptionsList: React.FC<OptionsListProps> = ({
       }));
   }, [optionItems, parameters]);
 
+  // Always declare hooks at the top level (before any early returns)
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollState, setScrollState] = useState({
+    scrollLeft: 0,
+    scrollWidth: 1,
+    clientWidth: 1,
+  });
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const dragDistanceRef = useRef(0);
+
+  const updateScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setScrollState({
+      scrollLeft: el.scrollLeft,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    });
+  }, []);
+
+  useEffect(() => {
+    // Only run for horizontal-scroll layout
+    if (optionsLayout !== "horizontal-scroll") return;
+    
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScroll();
+    el.addEventListener("scroll", updateScroll, { passive: true });
+    window.addEventListener("resize", updateScroll);
+    return () => {
+      el.removeEventListener("scroll", updateScroll);
+      window.removeEventListener("resize", updateScroll);
+    };
+  }, [updateScroll, optionsLayout]);
+
+  // Drag to scroll functionality
+  useEffect(() => {
+    // Only run for horizontal-scroll layout
+    if (optionsLayout !== "horizontal-scroll") return;
+    
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      isDraggingRef.current = true;
+      startXRef.current = e.pageX - el.offsetLeft;
+      scrollLeftRef.current = el.scrollLeft;
+      dragDistanceRef.current = 0;
+      el.style.cursor = "grabbing";
+      el.style.userSelect = "none";
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startXRef.current) * 2;
+      el.scrollLeft = scrollLeftRef.current - walk;
+      dragDistanceRef.current += Math.abs(walk);
+    };
+
+    const onMouseUpOrLeave = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        el.style.cursor = "grab";
+        el.style.userSelect = "";
+      }
+    };
+
+    // Prevent clicks on children if dragged
+    const onClick = (e: MouseEvent) => {
+      if (dragDistanceRef.current > 5) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mousemove", onMouseMove);
+    el.addEventListener("mouseup", onMouseUpOrLeave);
+    el.addEventListener("mouseleave", onMouseUpOrLeave);
+    el.addEventListener("click", onClick, true); // Use capture phase
+
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mousemove", onMouseMove);
+      el.removeEventListener("mouseup", onMouseUpOrLeave);
+      el.removeEventListener("mouseleave", onMouseUpOrLeave);
+      el.removeEventListener("click", onClick, true);
+    };
+  }, [optionsLayout]);
+
+  // Early return AFTER all hooks have been declared
   if (!showOptions || displayOptions.length === 0) return null;
 
   // Helper function to get button classes based on variant
@@ -93,93 +188,6 @@ const OptionsList: React.FC<OptionsListProps> = ({
 
   // Custom scrollbar logic for horizontal-scroll
   if (optionsLayout === "horizontal-scroll") {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const [scrollState, setScrollState] = useState({
-      scrollLeft: 0,
-      scrollWidth: 1,
-      clientWidth: 1,
-    });
-    const isDraggingRef = useRef(false);
-    const startXRef = useRef(0);
-    const scrollLeftRef = useRef(0);
-    const dragDistanceRef = useRef(0);
-
-    const updateScroll = useCallback(() => {
-      const el = scrollRef.current;
-      if (!el) return;
-      setScrollState({
-        scrollLeft: el.scrollLeft,
-        scrollWidth: el.scrollWidth,
-        clientWidth: el.clientWidth,
-      });
-    }, []);
-
-    useEffect(() => {
-      const el = scrollRef.current;
-      if (!el) return;
-      updateScroll();
-      el.addEventListener("scroll", updateScroll, { passive: true });
-      window.addEventListener("resize", updateScroll);
-      return () => {
-        el.removeEventListener("scroll", updateScroll);
-        window.removeEventListener("resize", updateScroll);
-      };
-    }, [updateScroll]);
-
-    // Drag to scroll functionality
-    useEffect(() => {
-      const el = scrollRef.current;
-      if (!el) return;
-
-      const onMouseDown = (e: MouseEvent) => {
-        isDraggingRef.current = true;
-        startXRef.current = e.pageX - el.offsetLeft;
-        scrollLeftRef.current = el.scrollLeft;
-        dragDistanceRef.current = 0;
-        el.style.cursor = "grabbing";
-        el.style.userSelect = "none";
-      };
-
-      const onMouseMove = (e: MouseEvent) => {
-        if (!isDraggingRef.current) return;
-        e.preventDefault();
-        const x = e.pageX - el.offsetLeft;
-        const walk = (x - startXRef.current) * 2;
-        el.scrollLeft = scrollLeftRef.current - walk;
-        dragDistanceRef.current += Math.abs(walk);
-      };
-
-      const onMouseUpOrLeave = () => {
-        if (isDraggingRef.current) {
-          isDraggingRef.current = false;
-          el.style.cursor = "grab";
-          el.style.userSelect = "";
-        }
-      };
-
-      // Prevent clicks on children if dragged
-      const onClick = (e: MouseEvent) => {
-        if (dragDistanceRef.current > 5) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      };
-
-      el.addEventListener("mousedown", onMouseDown);
-      el.addEventListener("mousemove", onMouseMove);
-      el.addEventListener("mouseup", onMouseUpOrLeave);
-      el.addEventListener("mouseleave", onMouseUpOrLeave);
-      el.addEventListener("click", onClick, true); // Use capture phase
-
-      return () => {
-        el.removeEventListener("mousedown", onMouseDown);
-        el.removeEventListener("mousemove", onMouseMove);
-        el.removeEventListener("mouseup", onMouseUpOrLeave);
-        el.removeEventListener("mouseleave", onMouseUpOrLeave);
-        el.removeEventListener("click", onClick, true);
-      };
-    }, []);
-
     // Calculate thumb width and position
     const { scrollLeft, scrollWidth, clientWidth } = scrollState;
     const thumbWidth = Math.max((clientWidth / scrollWidth) * 100, 10); // percent
