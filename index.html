@@ -97,33 +97,18 @@
         box-shadow: 0 4px 24px rgba(0,0,0,0.22);
       }
       .soof-chat-btn.close-mode {
-        font-size: 24px;
+        font-size: 32px;
+        line-height: 1;
+        font-weight: 300;
+        color: #333;
         z-index: 10000000;
       }
       .soof-chat-window {
-        position: fixed;
-        bottom: 112px;
-        right: 32px;
-        max-width: 95vw;
-        max-height: 80vh;
-        background: #fff;
-        border-radius: 16px;
-        box-shadow: 0 4px 32px rgba(0,0,0,0.22);
-        z-index: 9999999;
+        /* Window container - main.tsx will handle the actual overlay styling */
+        /* This class is just for identification, styling is done by React */
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        animation: laintern-agent-fade-in 0.2s;
-      }
-      .soof-chat-close {
-        position: absolute;
-        top: 12px;
-        right: 12px;
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        z-index: 2;
       }
       @keyframes laintern-agent-fade-in {
         from { opacity: 0; transform: translateY(40px); }
@@ -137,6 +122,10 @@
           right: 0;
           border-radius: 0;
         }
+        /* Hide floating button when chat is open on mobile */
+        .soof-chat-btn.close-mode {
+          display: none !important;
+        }
         .soof-chat-btn {
           right: 16px;
           bottom: 16px;
@@ -145,26 +134,33 @@
     `;
           this.shadowRoot.appendChild(style);
 
-          // Always show the button, but change its appearance based on state
+          // Always show the floating button, but change its appearance and behavior based on state
+          // On desktop: show as close button (X) when chat is open
+          // On mobile: button is hidden when chat is open (via CSS)
           this.button = document.createElement("button");
           this.button.className = "soof-chat-btn";
           
           if (!this.isOpen) {
-            // Chat icon when closed
+            // Chat closed: show chat icon
             this.button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32"><path d="M2 15V5c0-1.1.9-2 2-2h16a2 2 0 0 1 2 2v15a1 1 0 0 1-1.7.7L16.58 17H4a2 2 0 0 1-2-2z"/><path d="M6 7h12a1 1 0 0 1 0 2H6a1 1 0 1 1 0-2zm0 4h8a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2z"/></svg>`;
             this.button.addEventListener("click", this.handleButtonClick);
           } else {
-            // X icon when open
+            // Chat open: show close icon (X) for desktop
             this.button.innerHTML = "&times;";
             this.button.classList.add("close-mode");
             this.button.addEventListener("click", this.handleCloseClick);
             
+            // Chat window - React will handle the header close button for mobile
+            this.window = document.createElement("div");
+            this.window.className = "soof-chat-window";
             // React mount point
             this.reactMount = document.createElement("div");
             this.reactMount.id = "laintern-agent-react-root";
-            this.shadowRoot.appendChild(this.reactMount);
+            this.window.appendChild(this.reactMount);
+            this.shadowRoot.appendChild(this.window);
           }
           
+          // Always append the button (CSS will hide it on mobile when chat is open)
           this.shadowRoot.appendChild(this.button);
         }
 

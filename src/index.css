@@ -331,6 +331,41 @@
   animation: flowLeft 1.2s ease-in-out infinite;
 }
 
+/* Mobile widget optimization - ensure full viewport usage */
+@media (max-width: 768px) {
+  [data-laintern-agent-overlay] {
+    /* Ensure overlay covers full viewport on mobile */
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    /* Support for safe areas (iOS Safari notch, home indicator) */
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-left: env(safe-area-inset-left, 0px) !important;
+    padding-right: env(safe-area-inset-right, 0px) !important;
+  }
+}
+
+/* Touch-friendly close button on mobile */
+@media (max-width: 768px) {
+  button[aria-label="Close chat"] {
+    /* Ensure button is large enough for touch */
+    min-width: 44px;
+    min-height: 44px;
+    /* Prevent text selection on tap */
+    -webkit-user-select: none;
+    user-select: none;
+    /* Improve touch response */
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+  }
+}
+
 /* Regenerated text appears with fade-in animation */
  
- 
+  

@@ -12,6 +12,7 @@ import type { ProductMeta } from "./types/product";
 import type { OptionsData } from "./types/options";
 import { getPhaseMessage } from "./types/phase";
 import type { SoofConfig } from "./main";
+import { useMobileDetection } from "./hooks/useMobileDetection";
 // import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
@@ -55,11 +56,11 @@ export default function App({ config }: AppProps) {
   const { chatSession, setSessionToken, setThreadToken } = useChatSession();
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
+  const isMobile = useMobileDetection();
+  const isMobileWidget = config.type === 'widget' && isMobile;
   // const hostOrigin = useHost();
-  // const BACKEND_BASE = `${hostOrigin}/apps/soof`;
-  // const BACKEND_BASE = "https://soof-s--development.gadget.app";
+  // const BACKEND_BASE = `${hostOrigin}/apps/laintern-proxy`;
   const BACKEND_BASE = "http://localhost:3000";
-  // const BACKEND_BASE = "https://laintern-agent.fly.dev";
   const [sendFn, setSendFn] = useState<
     (text: string, requiredTool?: string) => void
   >(() => () => {});
@@ -77,6 +78,7 @@ export default function App({ config }: AppProps) {
   const messagesRef = useRef<MessagesRef>(null);
   const inputRef = useRef<InputRef>(null);
   const hydratedThreadRef = useRef<string | null>(null);
+  const appRootRef = useRef<HTMLDivElement | null>(null);
 
   // stable callbacks to prevent unnecessary re-renders
   const handleRegisterSendFn = useCallback(
@@ -830,11 +832,58 @@ export default function App({ config }: AppProps) {
     inputRef.current?.focus();
   };
 
+  /* -------------------------- Close chat handler (mobile widget) -------------------------- */
+  const handleCloseChat = useCallback(() => {
+    // Close the chat window via the host element (widget or search)
+    // Since we're inside a shadow DOM, we access via the root node of our React component
+    try {
+      // Access the mount point through the app root element's root node
+      if (appRootRef.current) {
+        const rootNode = appRootRef.current.getRootNode();
+        if (rootNode instanceof ShadowRoot) {
+          // Method 1: Try to find mount point in shadow root and use its close function
+          const mountPoint = rootNode.getElementById('laintern-agent-react-root');
+          if (mountPoint && typeof (mountPoint as any).__closeChat === 'function') {
+            (mountPoint as any).__closeChat();
+            return;
+          }
+          
+          // Method 2: Access host element directly via shadow root
+          if (rootNode.host) {
+            const hostEl = rootNode.host as any;
+            if (hostEl && typeof hostEl.closeChatWindow === 'function') {
+              hostEl.closeChatWindow();
+              return;
+            }
+          }
+        }
+      }
+      
+      // Method 3: Fallback - query custom elements from main document
+      // This should work since custom elements are in the main DOM
+      if (typeof document !== 'undefined') {
+        const shadowHost = document.querySelector('soof-chat') || 
+                          document.querySelector('laintern-agent-widget') ||
+                          document.querySelector('[data-laintern-agent-type="widget"]') ||
+                          document.querySelector('[data-laintern-agent-type="search"]');
+        if (shadowHost && typeof (shadowHost as any).closeChatWindow === 'function') {
+          (shadowHost as any).closeChatWindow();
+          return;
+        }
+      }
+      
+      console.warn('Could not find chat host element to close');
+    } catch (error) {
+      console.error('Error closing chat:', error);
+    }
+  }, []);
+
   return (
     <div
+      ref={appRootRef}
       className={`${
-        config.type === "widget" ? "rounded-2xl" : ""
-      } border-solid font-roboto bg-white shadow-lg flex flex-col text-[16px] leading-[20px] w-full h-full overflow-hidden overscroll-contain`}
+        isMobileWidget ? "" : config.type === "widget" ? "rounded-2xl" : ""
+      } border-solid font-roboto bg-white ${isMobileWidget ? "" : "shadow-lg"} flex flex-col text-[16px] leading-[20px] w-full h-full overflow-hidden overscroll-contain`}
     >
       <Header
         shopName="Klantenservice"
@@ -842,6 +891,8 @@ export default function App({ config }: AppProps) {
         primaryColor={config.primaryColor}
         secondaryColor={config.secondaryColor}
         onRestartChat={handleNewChat}
+        onCloseChat={isMobileWidget ? handleCloseChat : undefined}
+        showCloseButton={isMobileWidget}
       />
 
       <Messages
