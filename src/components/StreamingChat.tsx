@@ -222,7 +222,6 @@ export default function StreamingChat({
               const event = JSON.parse(line);
               switch (event.type) {
                 case "phase": {
-                  console.log('🎯 Phase event:', event.phase, 'name:', event.name, 'current guardrailState:', guardrailStateRef.current);
                   
                   // Handle guardrail phases
                   if (event.phase === "validating") {
@@ -242,7 +241,6 @@ export default function StreamingChat({
                     }
                   } else if (event.phase === "regenerating") {
                     // Update phase to regenerating
-                    console.log('✨ Setting regenerating phase');
                     let current = messagesRef.current.filter((m) => !m._isPlaceholder);
                     
                     // Note: We no longer remove frontendData messages during regeneration
@@ -281,7 +279,6 @@ export default function StreamingChat({
                         validationPhase: event.phase,
                         hasClearedForRegen: false, // CRITICAL: Set to false so first delta will clear content
                       };
-                      console.log('  → Created new guardrail state:', guardrailStateRef.current);
                       
                       if (last && last.type === "ai") {
                         last._guardrailData = { ...guardrailStateRef.current };
@@ -298,10 +295,7 @@ export default function StreamingChat({
                   } else if (event.phase === "thinking") {
                     // DON'T reset guardrail state if we're in the middle of regeneration
                     if (!guardrailStateRef.current || guardrailStateRef.current.validationPhase !== "regenerating") {
-                      console.log('🧠 Thinking phase - resetting guardrail state');
                       guardrailStateRef.current = null;
-                    } else {
-                      console.log('🧠 Thinking phase - but keeping guardrail state for regeneration');
                     }
                   }
                   // Use the phase name if available (for function calls like "search_shop_catalog")
@@ -316,9 +310,7 @@ export default function StreamingChat({
                   const withoutPlaceholders = messagesRef.current.filter((m) => !m._isPlaceholder);
                   
                   // If we're regenerating, mark that we should clear content on next delta
-                  console.log('🎬 assistant_output_start, guardrailState:', guardrailStateRef.current);
                   if (guardrailStateRef.current?.validationPhase === "regenerating") {
-                    console.log('  → Setting hasClearedForRegen = false');
                     guardrailStateRef.current.hasClearedForRegen = false;
                     // Reset block changes for new regenerated content
                     blockChangesRef.current = [];
@@ -361,21 +353,9 @@ export default function StreamingChat({
                   const isRegenerating = guardrailStateRef.current?.validationPhase === "regenerating";
                   const shouldStartFresh = isRegenerating && last && last.type === "ai" && !guardrailStateRef.current?.hasClearedForRegen;
                   
-                  console.log('🔄 Delta received:', {
-                    delta: event.delta?.substring(0, 20) + '...',
-                    isRegenerating,
-                    shouldStartFresh,
-                    hasClearedForRegen: guardrailStateRef.current?.hasClearedForRegen,
-                    lastExists: !!last,
-                    lastType: last?.type,
-                    lastDone: last?._stream_done,
-                    currentContent: last?.content?.substring(0, 30) + '...'
-                  });
-                  
                   // During regeneration, ALWAYS reuse the last message, never create a new one
                   if (!last || last.type !== "ai" || (last._stream_done && !isRegenerating)) {
                     // Create new AI message ONLY if not regenerating
-                    console.log('  → Creating NEW AI message');
                     const aiMsg: SimpleMessage = { 
                       type: "ai", 
                       content: event.delta || "", 
@@ -384,8 +364,6 @@ export default function StreamingChat({
                     };
                     messagesRef.current = [...current, aiMsg];
                   } else if (shouldStartFresh) {
-                    // START FRESH: Replace old content entirely
-                    console.log('✨ Starting fresh with regenerated content');
                     last.content = event.delta || "";
                     last._stream_done = false;
                     last._guardrailData = { ...guardrailStateRef.current! };
@@ -448,22 +426,10 @@ export default function StreamingChat({
                   break;
                 }
                 case "validation_complete": {
-                  // Validation complete - finalize validation state
-                  console.log('✅ Validation complete, regenerationNeeded:', event.regenerationNeeded);
-                  
                   // Get the last AI TEXT message (not frontend data)
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
                   const nonFrontendDataMessages = current.filter(m => !m._isFrontendData);
                   const last = nonFrontendDataMessages[nonFrontendDataMessages.length - 1];
-                  
-                  console.log('  → Last AI text message:', {
-                    hasLast: !!last,
-                    type: last?.type,
-                    hasGuardrailData: !!last?._guardrailData,
-                    currentPhase: last?._guardrailData?.validationPhase,
-                    isFrontendData: last?._isFrontendData,
-                    blockChangesCount: blockChangesRef.current.length,
-                  });
                   
                   if (last && last.type === "ai") {
                     // Apply any final accumulated block changes
@@ -485,8 +451,6 @@ export default function StreamingChat({
                         validationPhase: 'done',
                       };
                     }
-                    
-                    console.log('  → Updated to phase:', last._guardrailData?.validationPhase);
                   }
                   
                   messagesRef.current = current;
@@ -496,11 +460,6 @@ export default function StreamingChat({
                 case "frontend_data": {
                   // Handle frontend data whenever it arrives
                   let current = messagesRef.current.filter((m) => !m._isPlaceholder);
-                  
-                  console.log('📦 Frontend data received:', {
-                    hasEntries: !!event.data?.entries,
-                    entriesCount: event.data?.entries?.length
-                  });
                   
                   try {
                     // Process entries in new format: { entries: [{ type, label, data }] }
@@ -518,8 +477,6 @@ export default function StreamingChat({
                         const groupId = `${entryType}-group-${Date.now()}`;
                         // Extract renderImmediately flag (generic per entry, defaults to false)
                         const renderImmediately = entry.renderImmediately ?? false;
-                        
-                        console.log(`  → Processing entry type: ${entryType}, renderImmediately:`, renderImmediately);
                         
                         // Handle products type
                         if (entryType === "products") {
@@ -573,7 +530,6 @@ export default function StreamingChat({
                               if (renderImmediately) {
                                 lastTextAiMessage._renderImmediately = true;
                               }
-                              console.log('  → Attached options to existing text message (renderImmediately:', renderImmediately, ')');
                             } else {
                               // No text message found, create a standalone options message
                               const optionsMessage: SimpleMessage = {
@@ -588,15 +544,12 @@ export default function StreamingChat({
                                 _renderImmediately: renderImmediately,
                               };
                               current = [...current, optionsMessage];
-                              console.log('  → Created standalone options message (renderImmediately:', renderImmediately, ')');
                             }
                           }
                         }
                         // Future: handle other types like "orders", "cart", "customer"
                       }
                     }
-                    
-                    console.log('  → Final message count after frontend_data:', current.length);
                   } catch (error) {
                     console.error('Error processing frontend_data:', error);
                   }
@@ -622,13 +575,6 @@ export default function StreamingChat({
                   
                   // Extract guardrails data from new backend structure
                   const guardrails = event.guardrails;
-                  
-                  console.log('🏁 Done event - last text AI message:', {
-                    found: !!lastTextAiMessage,
-                    hasGuardrails: !!guardrails,
-                    wasRegenerated: guardrails?.wasRegenerated,
-                    hasClaims: !!guardrails?.claims,
-                  });
                   
                   if (lastTextAiMessage) {
                     (lastTextAiMessage as any)._stream_done = true;

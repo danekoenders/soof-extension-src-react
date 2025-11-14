@@ -13,7 +13,7 @@ import type { OptionsData } from "./types/options";
 import { getPhaseMessage } from "./types/phase";
 import type { SoofConfig } from "./main";
 import { useMobileDetection } from "./hooks/useMobileDetection";
-// import { useHost } from "./hooks/useHost";
+import { useHost } from "./hooks/useHost";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
@@ -58,9 +58,9 @@ export default function App({ config }: AppProps) {
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const isMobile = useMobileDetection();
   const isMobileWidget = config.type === 'widget' && isMobile;
-  // const hostOrigin = useHost();
-  // const BACKEND_BASE = `${hostOrigin}/apps/laintern-proxy`;
-  const BACKEND_BASE = "http://localhost:3000";
+  const hostOrigin = useHost();
+  const BACKEND_BASE = `${hostOrigin}/apps/laintern-proxy`;
+  // const BACKEND_BASE = "http://localhost:3000";
   const [sendFn, setSendFn] = useState<
     (text: string, requiredTool?: string) => void
   >(() => () => {});
@@ -259,18 +259,6 @@ export default function App({ config }: AppProps) {
         const content = (m.content ?? "") as string;
         const isError = (m as any)._isError;
         const guardrailData = (m as any)._guardrailData;
-
-        // Debug logging for options and guardrails
-        if (optionsData || guardrailData) {
-          console.log("📋 Message with options/guardrails:", {
-            hasOptions: !!optionsData,
-            optionsType: optionsData?.type,
-            renderImmediately: renderImmediately,
-            hasGuardrails: !!guardrailData,
-            guardrailPhase: guardrailData?.validationPhase,
-            content: content.substring(0, 30) + "...",
-          });
-        }
 
         // Filter out product and checkout messages (they're shown in Sources component)
         if (productMeta || checkoutData) {

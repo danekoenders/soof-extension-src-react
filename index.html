@@ -122,8 +122,8 @@
           right: 0;
           border-radius: 0;
         }
-        /* Hide floating button when chat is open on mobile */
-        .soof-chat-btn.close-mode {
+        /* Hide floating button when chat is open on mobile (button has data-chat-open attribute) */
+        .soof-chat-btn[data-chat-open="true"] {
           display: none !important;
         }
         .soof-chat-btn {
@@ -136,18 +136,21 @@
 
           // Always show the floating button, but change its appearance and behavior based on state
           // On desktop: show as close button (X) when chat is open
-          // On mobile: button is hidden when chat is open (via CSS)
+          // On mobile: button is hidden when chat is open (via CSS data attribute)
           this.button = document.createElement("button");
           this.button.className = "soof-chat-btn";
           
           if (!this.isOpen) {
-            // Chat closed: show chat icon
+            // Chat closed: show chat icon (visible on mobile and desktop)
             this.button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32"><path d="M2 15V5c0-1.1.9-2 2-2h16a2 2 0 0 1 2 2v15a1 1 0 0 1-1.7.7L16.58 17H4a2 2 0 0 1-2-2z"/><path d="M6 7h12a1 1 0 0 1 0 2H6a1 1 0 1 1 0-2zm0 4h8a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2z"/></svg>`;
+            this.button.setAttribute("data-chat-open", "false");
             this.button.addEventListener("click", this.handleButtonClick);
+            this.shadowRoot.appendChild(this.button);
           } else {
-            // Chat open: show close icon (X) for desktop
+            // Chat open: show close icon (X) for desktop, but hide on mobile
             this.button.innerHTML = "&times;";
             this.button.classList.add("close-mode");
+            this.button.setAttribute("data-chat-open", "true");
             this.button.addEventListener("click", this.handleCloseClick);
             
             // Chat window - React will handle the header close button for mobile
@@ -158,10 +161,10 @@
             this.reactMount.id = "laintern-agent-react-root";
             this.window.appendChild(this.reactMount);
             this.shadowRoot.appendChild(this.window);
+            
+            // Append button (CSS will hide it on mobile when data-chat-open="true")
+            this.shadowRoot.appendChild(this.button);
           }
-          
-          // Always append the button (CSS will hide it on mobile when chat is open)
-          this.shadowRoot.appendChild(this.button);
         }
 
         // Expose a mount point for React (main.tsx expects shadowRoot and a div inside)

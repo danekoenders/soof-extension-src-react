@@ -72,19 +72,182 @@ export interface SoofConfig {
     // Mobile: fullscreen overlay with safe areas, Desktop: centered with backdrop
     if (isMobile) {
       overlay.className = 'fixed inset-0 bg-white z-[999999] flex flex-col';
-      // Apply safe area insets for iOS Safari (notch, home indicator, rounded corners)
+      // Apply safe area insets for iOS Safari (notch, home indicator, rounded corners, browser UI)
       // Use CSS custom properties for safe areas
       overlay.style.setProperty('padding-top', 'max(env(safe-area-inset-top, 0), 0px)');
       overlay.style.setProperty('padding-bottom', 'max(env(safe-area-inset-bottom, 0), 0px)');
       overlay.style.setProperty('padding-left', 'max(env(safe-area-inset-left, 0), 0px)');
       overlay.style.setProperty('padding-right', 'max(env(safe-area-inset-right, 0), 0px)');
-      // Ensure full viewport coverage
-      overlay.style.width = '100vw';
-      overlay.style.height = '100vh';
-      overlay.style.maxWidth = '100vw';
-      overlay.style.maxHeight = '100vh';
+      // Use actual window dimensions for Safari (accounts for browser UI like address bar)
+      // This ensures the overlay doesn't extend beyond the visible viewport
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.right = '0';
+      overlay.style.width = '100%';
       overlay.style.borderRadius = '0';
       overlay.style.margin = '0';
+      overlay.style.overflow = 'hidden';
+      
+      // Store initial viewport height (when keyboard is not visible)
+      let initialViewportHeight: number = window.innerHeight;
+      if (window.visualViewport) {
+        initialViewportHeight = window.visualViewport.height;
+      }
+      
+      // Track if input is focused (keyboard is visible)
+      let isInputFocused = false;
+      const checkInputFocus = () => {
+        // Check if any input in the overlay is focused
+        const activeElement = shadowRoot.activeElement || document.activeElement;
+        const isInput = activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.getAttribute('contenteditable') === 'true'
+        );
+        isInputFocused = !!(isInput && overlay.contains(activeElement as Node));
+      };
+      
+      // Use Visual Viewport API for Safari (most accurate for browser UI)
+      // This accounts for the browser UI (address bar, search bar) dynamically
+      // The overlay should fill the visible viewport, starting from the top of the screen
+      const updateOverlayDimensions = () => {
+        // Check if input is currently focused
+        checkInputFocus();
+        
+        // Get the actual visible viewport height (excludes browser UI)
+        // Use Visual Viewport API if available (best for Safari iOS)
+        let currentViewportHeight: number;
+        
+        if (window.visualViewport) {
+          // Visual Viewport API gives the actual visible area (excludes browser UI)
+          // This is the height of the area the user can actually see
+          currentViewportHeight = window.visualViewport.height;
+          
+          // Update initial height if keyboard is not visible and viewport is larger
+          // (browser UI might have hidden)
+          if (!isInputFocused && currentViewportHeight > initialViewportHeight) {
+            initialViewportHeight = currentViewportHeight;
+          }
+        } else {
+          // Fallback: use window.innerHeight (excludes browser UI on most browsers)
+          currentViewportHeight = window.innerHeight;
+          if (!isInputFocused && currentViewportHeight > initialViewportHeight) {
+            initialViewportHeight = currentViewportHeight;
+          }
+        }
+        
+        // When keyboard is visible, maintain the initial height to prevent jumping
+        // When keyboard is hidden, use the current viewport height
+        const targetHeight = isInputFocused ? initialViewportHeight : currentViewportHeight;
+        
+        // Ensure we have a valid height
+        const visibleHeight = targetHeight > 0 ? targetHeight : window.innerHeight || document.documentElement.clientHeight;
+        
+        // Set overlay to fill viewport exactly
+        // When keyboard is visible, maintain full height to prevent jumping
+        overlay.style.setProperty('height', `${visibleHeight}px`, 'important');
+        overlay.style.setProperty('max-height', `${visibleHeight}px`, 'important');
+        overlay.style.setProperty('min-height', `${visibleHeight}px`, 'important');
+        
+        // Always position at top: 0 (start from top of screen)
+        // Don't adjust position when keyboard appears - maintain stable position
+        overlay.style.setProperty('top', '0', 'important');
+        overlay.style.setProperty('left', '0', 'important');
+        overlay.style.setProperty('right', '0', 'important');
+        overlay.style.setProperty('bottom', 'auto', 'important');
+        
+        // When keyboard is visible, prevent overlay from shrinking
+        // The content inside can scroll, but overlay maintains full height
+        if (isInputFocused) {
+          overlay.style.setProperty('position', 'fixed', 'important');
+          overlay.style.setProperty('transform', 'none', 'important');
+        }
+      };
+      
+      // Initial setup
+      updateOverlayDimensions();
+      
+      // Track input focus changes to detect keyboard
+      shadowRoot.addEventListener('focusin', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true') {
+          // Input focused - keyboard will appear
+          // Delay update to allow keyboard animation
+          setTimeout(() => {
+            updateOverlayDimensions();
+          }, 100);
+        }
+      }, true);
+      
+      shadowRoot.addEventListener('focusout', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true') {
+          // Input blurred - keyboard will hide
+          // Delay update to allow keyboard animation
+          setTimeout(() => {
+            updateOverlayDimensions();
+          }, 300);
+        }
+      }, true);
+      
+      // Update on resize/orientation change for Safari (address bar can show/hide)
+      const handleViewportChange = () => {
+        // Use requestAnimationFrame to ensure viewport has updated
+        requestAnimationFrame(updateOverlayDimensions);
+      };
+      
+      // Listen for viewport changes
+      window.addEventListener('resize', handleViewportChange);
+      window.addEventListener('orientationchange', () => {
+        // Reset initial height on orientation change
+        initialViewportHeight = window.innerHeight;
+        if (window.visualViewport) {
+          initialViewportHeight = window.visualViewport.height;
+        }
+        // Longer delay for orientation change to ensure viewport has updated
+        setTimeout(() => {
+          requestAnimationFrame(updateOverlayDimensions);
+        }, 150);
+      });
+      
+      // Use Visual Viewport API for Safari (most accurate for browser UI changes)
+      // This fires when the browser UI shows/hides (address bar, etc.)
+      if (window.visualViewport) {
+        const handleVisualViewportChange = () => {
+          // Only update if input is not focused (keyboard is not visible)
+          // When keyboard is visible, we maintain the initial height
+          if (!isInputFocused) {
+            requestAnimationFrame(updateOverlayDimensions);
+          }
+        };
+        
+        window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+        // Note: We don't adjust position on scroll - we want overlay fixed to top
+      }
+      
+      // Prevent body scroll when overlay is open (Safari issue)
+      // Note: The overlay's overflow: hidden should prevent scrolling,
+      // but we also prevent touchmove on non-scrollable areas
+      overlay.addEventListener('touchmove', (e) => {
+        // Allow scrolling within scrollable containers inside the overlay
+        const target = e.target as HTMLElement;
+        const scrollable = target.closest('[data-scrollable]') || 
+                          target.closest('.overflow-auto') ||
+                          target.closest('.overflow-y-auto') ||
+                          target.closest('[style*="overflow"]');
+        // Only prevent default if not scrolling within a scrollable container
+        if (!scrollable || scrollable === overlay) {
+          // Check if we're at the scroll boundaries
+          const element = scrollable || overlay;
+          if (element.scrollTop === 0 && e.touches[0].clientY > (e.touches[0].clientY - 10)) {
+            e.preventDefault();
+          } else if (element.scrollHeight <= element.clientHeight) {
+            e.preventDefault();
+          }
+        }
+      }, { passive: false });
+      
     } else {
       overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-center z-[999999]';
     }
@@ -105,6 +268,11 @@ export interface SoofConfig {
       existingMountPoint.style.borderRadius = '0';
       existingMountPoint.style.maxWidth = '100%';
       existingMountPoint.style.maxHeight = '100%';
+      // Ensure mount point fills available height (accounts for safe areas and browser UI)
+      existingMountPoint.style.height = '100%';
+      existingMountPoint.style.overflow = 'hidden';
+      existingMountPoint.style.display = 'flex';
+      existingMountPoint.style.flexDirection = 'column';
     } else {
       existingMountPoint.className = 'w-full h-[73vh] max-w-[640px] animate-slide-in-chat rounded-2xl';
     }

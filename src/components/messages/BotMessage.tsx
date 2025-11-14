@@ -81,40 +81,19 @@ export default function BotMessage({
   const optionsConfig = useMemo(() => {
     if (!optionsData) return null;
 
-    console.log('🎯 BotMessage optionsConfig:', {
-      type: optionsData.type,
-      template: optionsData.template,
-      hasCustom: !!optionsData.custom,
-      parameters: optionsData.parameters,
-    });
-
     if (optionsData.type === "template" && optionsData.template) {
       const template = OPTIONS_TEMPLATES[optionsData.template];
       if (!template) {
         console.warn(`Template "${optionsData.template}" not found`);
         return null;
       }
-      console.log('  → Template found:', template);
       return template;
     } else if (optionsData.type === "custom" && optionsData.custom) {
-      console.log('  → Using custom options:', optionsData.custom);
       return optionsData.custom;
     }
 
     return null;
   }, [optionsData]);
-
-  // Log guardrail data when it changes
-  useEffect(() => {
-    if (guardrailData) {
-      console.log('🛡️ BotMessage guardrailData:', {
-        validationPhase: guardrailData.validationPhase,
-        wasRegenerated: guardrailData.wasRegenerated,
-        hasAllowedClaims: !!guardrailData.claims?.allowedClaims,
-        allowedClaimsCount: guardrailData.claims?.allowedClaims?.length || 0,
-      });
-    }
-  }, [guardrailData]);
 
   // Handle smooth transition when guardrail regeneration occurs
   useEffect(() => {
