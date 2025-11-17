@@ -69,6 +69,7 @@ export default function App({ config }: AppProps) {
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
   const [isValidating, setIsValidating] = useState(false);
+  const resolvedPrimaryColor = config.primaryColor?.trim();
   // Message queue for messages sent before session is ready
   const [queuedMessages, setQueuedMessages] = useState<Array<{ text: string; requiredTool?: string }>>([]);
   // Track if we're processing queued messages to prevent welcome message flash
@@ -876,7 +877,7 @@ export default function App({ config }: AppProps) {
       <Header
         shopName="Klantenservice"
         chatbotName={config.agentName}
-        primaryColor={config.primaryColor}
+        primaryColor={resolvedPrimaryColor}
         secondaryColor={config.secondaryColor}
         onRestartChat={handleNewChat}
         onCloseChat={isMobileWidget ? handleCloseChat : undefined}
@@ -899,13 +900,15 @@ export default function App({ config }: AppProps) {
           <p className="leading-4 m-0">
             Lees alles over hoe we je gegevens verwerken in onze{" "}
             <a
-              href="https://laintern.com/privacy-policy"
+              href="https://laintern.com/privacy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600"
+              style={{ color: resolvedPrimaryColor }}
             >
               Privacy Policy
             </a>
+            .
           </p>
         </div>
       )}
@@ -953,16 +956,8 @@ export default function App({ config }: AppProps) {
             sendFn === undefined ||
             sendFn.toString() === (() => {}).toString()
           }
-          theme={{
-            primaryBackground: "#0040c0",
-            secondaryBackground: "#ffffff",
-            background: "#ffffff",
-            primaryAccent: "#0081b1",
-            secondaryText: "#ffffff",
-            primaryText: "#000000",
-            secondaryBorder: "#cccccc",
-            disabledBackground: "#eeeeee",
-          }}
+          primaryColor={resolvedPrimaryColor}
+          secondaryColor={config.secondaryColor}
           isMobile={false}
         />
 
@@ -981,7 +976,17 @@ export default function App({ config }: AppProps) {
 
         {/* Footer */}
         <div className="px-1 pt-1 text-[11px] text-gray-400 flex items-center justify-between">
-          <a href="https://laintern.com" target="_blank" rel="noopener noreferrer" >Powered by <span className="text-blue-900">Laintern</span></a>
+          <span>
+            Powered by{" "}
+            <a
+              href="https://laintern.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={resolvedPrimaryColor ? { color: resolvedPrimaryColor } : undefined}
+            >
+              Laintern
+            </a>
+          </span>
           <span>protected by reCAPTCHA</span>
         </div>
       </div>

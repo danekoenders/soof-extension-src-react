@@ -18,7 +18,7 @@ export default function Header({
   showCloseButton = false,
 }: HeaderProps) {
   const headerGradient = {
-    background: `linear-gradient(130deg, ${primaryColor || '#0040c0'} 50%, ${secondaryColor || '#ffffff'} 100%)`,
+    background: `linear-gradient(130deg, ${primaryColor} 50%, ${secondaryColor} 100%)`,
   };
 
   return (

@@ -4,16 +4,8 @@ import type { FormEvent, ChangeEvent } from "react";
 interface InputProps {
   onSend: (text: string) => void;
   disableSend?: boolean; // Disable sending messages
-  theme: {
-    primaryBackground: string;
-    secondaryBackground: string;
-    background: string;
-    primaryAccent: string;
-    secondaryText: string;
-    primaryText: string;
-    secondaryBorder: string;
-    disabledBackground: string;
-  };
+  primaryColor?: string;
+  secondaryColor?: string;
   isMobile: boolean;
 }
 
@@ -27,6 +19,7 @@ const Input = forwardRef<InputRef, InputProps>(
       onSend,
       disableSend = false,
       isMobile,
+      primaryColor,
     },
     ref
   ) => {
@@ -86,6 +79,9 @@ const Input = forwardRef<InputRef, InputProps>(
     }
   };
 
+  const computedPrimaryColor = primaryColor?.trim() || "#2563eb";
+  const canSend = !!text.trim() && !disableSend && !limitReached;
+
   return (
     <>
       <form
@@ -114,10 +110,17 @@ const Input = forwardRef<InputRef, InputProps>(
         />
         <button
           type="submit"
-          disabled={disableSend || !text.trim() || limitReached}
+          disabled={!canSend}
           className={`flex items-center justify-center self-end p-2 border-none rounded-md cursor-pointer transition-colors disabled:cursor-not-allowed ${
-            disableSend || limitReached ? "bg-gray-100" : "bg-blue-600 text-white"
+            canSend ? "text-white" : "bg-gray-100 text-gray-400"
           }`}
+          style={
+            canSend
+              ? {
+                  backgroundColor: computedPrimaryColor,
+                }
+              : undefined
+          }
         >
           <svg
             version="1.1"
