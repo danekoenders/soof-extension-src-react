@@ -172,6 +172,50 @@ export default function StreamingChat({
           body: JSON.stringify(body),
         });
 
+        // Check if the response is an error status
+        if (!response.ok) {
+          // Try to read error message from response body
+          let errorMessage = `Er is een fout opgetreden (${response.status} ${response.statusText}). Probeer het opnieuw.`;
+          
+          try {
+            // Try to parse error message from response body
+            const errorText = await response.text();
+            if (errorText) {
+              try {
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson.message || errorJson.error || errorJson.msg || errorMessage;
+              } catch {
+                // If not JSON, use the text as error message if it's not too long
+                if (errorText.length < 500) {
+                  errorMessage = errorText;
+                }
+              }
+            }
+          } catch (err) {
+            // If we can't read the error body, use the default message
+            console.error('Failed to read error response:', err);
+          }
+          
+          // Remove placeholders and show error message
+          const current = messagesRef.current.filter((m) => !m._isPlaceholder);
+          const errMsg: SimpleMessage = { 
+            type: "ai", 
+            content: errorMessage,
+            _stream_done: true,
+            _isError: true
+          };
+          messagesRef.current = [...current, errMsg];
+          onMessages(messagesRef.current);
+          
+          // Clear waiting flag on error
+          if (waitingForSessionStateRef.current) {
+            waitingForSessionStateRef.current = false;
+            onWaitingForSessionState?.(false);
+          }
+          
+          return;
+        }
+
         if (!response.body) throw new Error("Response body not streamable");
 
         const reader = response.body.getReader();
