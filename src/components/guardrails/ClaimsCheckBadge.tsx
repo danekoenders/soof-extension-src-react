@@ -3,14 +3,51 @@ import { useState } from "react";
 interface ClaimsCheckBadgeProps {
   wasRegenerated: boolean;
   allowedClaims?: string[];
+  validationPhase?: "thinking" | "validating" | "regenerating" | "done";
 }
 
 export default function ClaimsCheckBadge({
   wasRegenerated,
   allowedClaims = [],
+  validationPhase = "done",
 }: ClaimsCheckBadgeProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // Show validating/regenerating/thinking indicator
+  if (validationPhase === "validating" || validationPhase === "regenerating" || validationPhase === "thinking") {
+    return (
+      <div className="relative inline-block animate-fade-in">
+        <div
+          className="inline-flex items-center gap-1 px-1 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded cursor-help hover:bg-green-50/60 transition-colors"
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
+        >
+          <div className="relative w-2.5 h-2.5">
+            <div className="absolute inset-0 rounded-full border-2 border-green-200 border-t-green-600 animate-spin"></div>
+          </div>
+          <span>Bericht checken</span>
+        </div>
+
+        {showTooltip && (
+          <div className="absolute bottom-full left-0 mb-2 w-56 px-2.5 py-2 text-[11px] text-gray-700 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+            <p className="font-medium mb-0.5 text-xs">Wat checken we?</p>
+            <p className="text-gray-600 leading-tight">
+              We controleren of alle gezondheidsclaims in het bericht
+              voldoen aan de officiële NVWA-richtlijnen voor
+              voedingssupplementen.
+            </p>
+            <div className="absolute top-full left-3 -mt-1">
+              <div
+                className="border-[5px] border-transparent border-t-white"
+                style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.1))" }}
+              ></div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Not regenerated OR regenerated but no claims data - show tooltip only
   // This handles both simple checks and regenerated messages where claims weren't loaded
@@ -59,10 +96,10 @@ export default function ClaimsCheckBadge({
 
   // Regenerated WITH claims data - show expandable list
   return (
-    <div className="inline-block w-full animate-fade-in">
+    <div className="relative inline-block animate-fade-in">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="inline-flex items-center gap-1 px-1 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded hover:bg-green-50/60 transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1 px-1 py-0.5 text-[10px] text-green-600/80 bg-green-50/40 rounded cursor-help hover:bg-green-50/60 transition-colors border-0 m-0 appearance-none outline-none focus:outline-none"
       >
         <svg
           className="w-2.5 h-2.5"

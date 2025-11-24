@@ -68,7 +68,6 @@ export default function App({ config }: AppProps) {
     useState(false);
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(false);
   const [persistedSources, setPersistedSources] = useState<SourceGroup[]>([]);
-  const [isValidating, setIsValidating] = useState(false);
   const resolvedPrimaryColor = config.primaryColor?.trim();
   // Message queue for messages sent before session is ready
   const [queuedMessages, setQueuedMessages] = useState<Array<{ text: string; requiredTool?: string }>>([]);
@@ -91,19 +90,6 @@ export default function App({ config }: AppProps) {
 
   const handleMessages = useCallback((msgs: any[]) => {
     setMessages(msgs);
-
-    // Check if we're currently validating by looking at the last AI message's guardrail state
-    const lastAIMessage = msgs
-      .filter((m: any) => m.type === "ai" && !m._isFrontendData)
-      .pop();
-
-    if (lastAIMessage?._guardrailData) {
-      const phase = lastAIMessage._guardrailData.validationPhase;
-      const shouldValidate = phase === "validating" || phase === "regenerating";
-      setIsValidating(shouldValidate);
-    } else {
-      setIsValidating(false);
-    }
   }, []);
 
   const handleWaitingForSessionState = useCallback((isWaiting: boolean) => {
@@ -814,7 +800,6 @@ export default function App({ config }: AppProps) {
     setIsWaitingForSessionState(false);
     setPersistedSources([]);
     setIsSourcesCollapsed(false);
-    setIsValidating(false);
     // Note: Don't reset sendFn - StreamingChat keeps the same function reference
     setIsLoadingThread(false);
     // Focus on input for new chat
@@ -914,32 +899,6 @@ export default function App({ config }: AppProps) {
       )}
 
       <div className="p-4 pt-0 bg-white relative">
-        {/* Validation indicator - overlays above Sources */}
-        {isValidating && (
-          <div className="absolute -top-[25px] left-0 right-0 z-20 py-0.5 mx-8 border border-b-0 border-green-100 rounded-t-lg bg-green-50/80 backdrop-blur-sm animate-fade-in flex justify-center pointer-events-none">
-            <div
-              className="inline-flex items-center gap-2 text-xs text-green-700 cursor-help group relative pointer-events-auto"
-              title="We controleren of alle gezondheidsclaims voldoen aan de NVWA-richtlijnen"
-            >
-              <div className="relative w-3 h-3">
-                <div className="absolute inset-0 rounded-full border-2 border-green-300 border-t-green-600 animate-spin"></div>
-              </div>
-              <span>Bericht checken...</span>
-
-              {/* Tooltip */}
-              <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
-                <div className="font-medium mb-1">Wat checken we?</div>
-                <div className="text-gray-300">
-                  We controleren of alle gezondheidsclaims in het bericht
-                  voldoen aan de officiële NVWA-richtlijnen voor
-                  voedingssupplementen.
-                </div>
-                <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Sources component - displays frontendData components in a carousel */}
         <Sources
           messages={displaySources}

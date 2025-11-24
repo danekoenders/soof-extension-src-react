@@ -322,19 +322,18 @@ export default function BotMessage({
               )}
             </div>
 
-            {/* Show claims check badge only when done (not during validating/regenerating) */}
-            {guardrailData && guardrailData.validationPhase === "done" && (
+            {/* Show claims check badge for all validation phases */}
+            {guardrailData && (
               <div className="px-2 pb-2 relative z-10">
                 <ClaimsCheckBadge
                   wasRegenerated={guardrailData.wasRegenerated || false}
                   allowedClaims={guardrailData.claims?.allowedClaims}
+                  validationPhase={guardrailData.validationPhase }
                 />
               </div>
             )}
           </div>
         )}
-
-        {/* Product cards are now rendered in the Sources component above the input */}
       </div>
     </div>
   );

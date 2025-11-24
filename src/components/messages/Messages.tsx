@@ -46,8 +46,8 @@ export interface MessagesRef {
 }
 
 const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSelect, isLoadingThread = false }, ref) => {
-  const el = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const wasAtBottomRef = useRef(true); // Track if user was at bottom before update
@@ -75,33 +75,28 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Monitor content size changes to maintain scroll position
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      // If we were at the bottom, stick to the bottom when content resizes
+      if (wasAtBottomRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+
+    resizeObserver.observe(content);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // Immediate scroll when new messages are added
   useEffect(() => {
     // Only auto-scroll if user WAS at the bottom before messages changed
     if (wasAtBottomRef.current && scrollContainerRef.current) {
-      // Use ResizeObserver to detect when content has finished rendering
-      const container = scrollContainerRef.current;
-      let resizeTimeout: number | null = null;
-      
-      const resizeObserver = new ResizeObserver(() => {
-        // Clear previous timeout
-        if (resizeTimeout) clearTimeout(resizeTimeout);
-        
-        // Debounce scroll to wait for layout to stabilize
-        resizeTimeout = setTimeout(() => {
-          container.scrollTop = container.scrollHeight;
-        }, 50);
-      });
-      
-      // Observe the container for size changes (indicates content rendering)
-      resizeObserver.observe(container);
-      
-      // Also do an immediate scroll for fast cases
-      container.scrollTop = container.scrollHeight;
-      
-      return () => {
-        resizeObserver.disconnect();
-        if (resizeTimeout) clearTimeout(resizeTimeout);
-      };
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -200,13 +195,14 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
   };
 
   return (
-    <div ref={scrollContainerRef} className="flex flex-col flex-grow overflow-y-auto px-4 pt-4 gap-2">
-      {isLoadingThread ? (
-        <SkeletonMessages />
-      ) : (
-        messages.map((message, index) => renderMessage(message, index))
-      )}
-      <div id="el" ref={el} className="h-16" />
+    <div ref={scrollContainerRef} className="flex flex-col flex-grow overflow-y-auto">
+      <div ref={contentRef} className="flex flex-col px-4 pt-4 gap-2 pb-4">
+        {isLoadingThread ? (
+          <SkeletonMessages />
+        ) : (
+          messages.map((message, index) => renderMessage(message, index))
+        )}
+      </div>
     </div>
   );
 });
