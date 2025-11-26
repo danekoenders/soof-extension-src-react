@@ -50,12 +50,20 @@ interface AppProps {
   config: SoofConfig;
 }
 
+// Shop settings type
+interface ShopSettings {
+  agentName?: string;
+  welcomeMessage?: Message;
+}
+
 export default function App({ config }: AppProps) {
   /* ------------------------------- 1. State ------------------------------- */
 
   const { chatSession, setSessionToken, setThreadToken } = useChatSession();
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
+  const [isLoadingShop, setIsLoadingShop] = useState(true);
+  const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
   const isMobile = useMobileDetection();
   const isMobileWidget = config.type === 'widget' && isMobile;
   const hostOrigin = useHost();
@@ -79,6 +87,7 @@ export default function App({ config }: AppProps) {
   const inputRef = useRef<InputRef>(null);
   const hydratedThreadRef = useRef<string | null>(null);
   const appRootRef = useRef<HTMLDivElement | null>(null);
+  const shopFetchedRef = useRef(false);
 
   // stable callbacks to prevent unnecessary re-renders
   const handleRegisterSendFn = useCallback(
@@ -95,8 +104,6 @@ export default function App({ config }: AppProps) {
   const handleWaitingForSessionState = useCallback((isWaiting: boolean) => {
     setIsWaitingForSessionState(isWaiting);
   }, []);
-
-  // no-op: threadToken managed in hook
 
   // Process queued messages once session and thread (if applicable) are ready
   useEffect(() => {
@@ -292,6 +299,45 @@ export default function App({ config }: AppProps) {
     });
   }, [combinedMessages]);
 
+  // Fetch shop settings when no thread token (new user)
+  useEffect(() => {
+    // Wait for session to be initialized from storage before deciding
+    if (!chatSession.isInitialized) return;
+    // Skip if we have a thread token (shop settings will come from thread endpoint)
+    if (chatSession.threadToken) return;
+    // Skip if already fetched or currently fetching
+    if (shopFetchedRef.current) return;
+    
+    // Mark as fetched immediately to prevent double calls (React StrictMode)
+    shopFetchedRef.current = true;
+
+    (async () => {
+      setIsLoadingShop(true);
+      try {
+        const res = await fetch(`${BACKEND_BASE}/api/shop`);
+        if (!res.ok) {
+          setIsLoadingShop(false);
+          return;
+        }
+        const data = await res.json();
+        
+        // Extract shop settings
+        if (data?.settings) {
+          setShopSettings({
+            agentName: data.settings.agentName,
+            welcomeMessage: data.settings.welcomeMessage,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch shop settings:", err);
+        // Reset ref on error so it can retry
+        shopFetchedRef.current = false;
+      } finally {
+        setIsLoadingShop(false);
+      }
+    })();
+  }, [chatSession.isInitialized, chatSession.threadToken]);
+
   // Hydrate transcript from backend when we have a threadToken
   useEffect(() => {
     const token = chatSession.threadToken;
@@ -307,6 +353,7 @@ export default function App({ config }: AppProps) {
 
     (async () => {
       setIsLoadingThread(true);
+      setIsLoadingShop(true);
       try {
         const res = await fetch(
           `${BACKEND_BASE}/api/agent/thread?threadToken=${encodeURIComponent(
@@ -316,6 +363,16 @@ export default function App({ config }: AppProps) {
         if (!res.ok) return;
         const data = await res.json();
         const history = Array.isArray(data?.history) ? data.history : [];
+        
+        // Extract shop settings from thread response
+        if (data?.shop?.settings) {
+          setShopSettings({
+            agentName: data.shop.settings.agentName,
+            welcomeMessage: data.shop.settings.welcomeMessage,
+          });
+          shopFetchedRef.current = true;
+        }
+        setIsLoadingShop(false);
 
         const extractText = (content: any): string => {
           if (!content) return "";
@@ -605,6 +662,8 @@ export default function App({ config }: AppProps) {
 
   /* ------------------------------- 6. Render ------------------------------ */
 
+  const agentName = shopSettings?.agentName || "Agent";
+
   /* -------------------------- Derived flags --------------------------- */
   const chatStarted = useMemo(() => {
     // Check combinedMessages to include both normal and queued messages
@@ -613,49 +672,21 @@ export default function App({ config }: AppProps) {
   }, [combinedMessages, isProcessingQueue]);
 
   /* ---------------------- Welcome + Disclaimer ------------------------ */
-  const WELCOME_MESSAGE: Message = {
-    role: "assistant",
-    type: "normal",
-    content: `Hey! 👋 Ik ben ${config.agentName}, de virtuele assistent🤖 van deze webwinkel. Ik kan de meeste van je vragen beantwoorden. Stel gerust een vraag of kies een van de suggesties hieronder!`,
-    optionsData: {
-      type: "custom",
-      custom: {
-        optionsLayout: "horizontal-scroll",
-        options: [
-          {
-            type: "message",
-            label: "Bezorgstatus opvragen..",
-            message: "Waar is mijn bestelling?",
-          },
-          {
-            type: "message",
-            label: "Product zoeken..",
-            message: "Ik zoek een product",
-          },
-          {
-            type: "message",
-            label: "Medewerker spreken..",
-            message: "Ik wil een medewerker spreken",
-          },
-          {
-            type: "message",
-            label: "Retourneren..",
-            message: "Ik wil een retourneren",
-          },
-        ],
-      },
-    },
-  };
+  // Use shop settings welcome message (no fallback)
+  const welcomeMessage: Message | null = shopSettings?.welcomeMessage || null;
+  
+  // Check if welcome message should be shown (must exist and have non-empty content)
+  const shouldShowWelcomeMessage = welcomeMessage && welcomeMessage.content?.trim() !== "";
 
   /* -------------------- Inject welcome/disclaimer -------------------- */
   const displayMessages: Message[] = useMemo(() => {
     const base = [...mappedMessages];
-    // Only show welcome message if chat hasn't started AND we're not loading thread data
-    if (!chatStarted && !isLoadingThread) {
-      base.unshift(WELCOME_MESSAGE);
+    // Only show welcome message if chat hasn't started AND we're not loading thread/shop data AND welcome message has content
+    if (!chatStarted && !isLoadingThread && !isLoadingShop && shouldShowWelcomeMessage && welcomeMessage) {
+      base.unshift(welcomeMessage);
     }
     return base;
-  }, [mappedMessages, chatStarted, isLoadingThread]);
+  }, [mappedMessages, chatStarted, isLoadingThread, isLoadingShop, shouldShowWelcomeMessage, welcomeMessage]);
 
   /* -------------------- Extract source messages grouped by productGroupId -------------------- */
   const sourceMessages = useMemo((): SourceGroup[] => {
@@ -861,7 +892,7 @@ export default function App({ config }: AppProps) {
     >
       <Header
         shopName="Klantenservice"
-        chatbotName={config.agentName}
+        agentName={agentName}
         primaryColor={resolvedPrimaryColor}
         secondaryColor={config.secondaryColor}
         onRestartChat={handleNewChat}
@@ -873,11 +904,11 @@ export default function App({ config }: AppProps) {
         ref={messagesRef}
         messages={displayMessages}
         onOptionSelect={handleSend}
-        isLoadingThread={isLoadingThread}
+        isLoadingThread={isLoadingThread || isLoadingShop}
       />
 
-      {/* Disclaimer shown only when chat not started and not loading thread */}
-      {!chatStarted && !isLoadingThread && (
+      {/* Disclaimer shown only when chat not started and not loading thread/shop and welcome message is shown */}
+      {!chatStarted && !isLoadingThread && !isLoadingShop && shouldShowWelcomeMessage && (
         <div className="w-[80%] self-center px-4 py-4 text-center text-xs text-gray-500 flex flex-col gap-2">
           <p className="leading-4 m-0">
             Laintern kan fouten maken. Controleer belangrijke informatie.

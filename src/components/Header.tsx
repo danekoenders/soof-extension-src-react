@@ -1,6 +1,6 @@
 interface HeaderProps {
   shopName: string;
-  chatbotName: string;
+  agentName: string;
   primaryColor?: string;
   secondaryColor?: string;
   onRestartChat: () => void;
@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export default function Header({
   shopName,
-  chatbotName,
+  agentName,
   primaryColor,
   secondaryColor,
   onRestartChat,
@@ -37,7 +37,7 @@ export default function Header({
           {shopName || "Klantenservice"}
         </h4>
         <span className="text-sm text-white">
-          Je chat met {chatbotName || "Soof"}
+          Je chat met {agentName || "Agent"}
         </span>
       </div>
 

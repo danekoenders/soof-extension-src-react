@@ -6,7 +6,6 @@ import indexCss from "./index.css?inline";
 // Configuration interface for chatbot settings
 export interface SoofConfig {
   type: 'widget' | 'embedded';
-  agentName: string;
   language?: string;
   primaryColor?: string;
   secondaryColor?: string;

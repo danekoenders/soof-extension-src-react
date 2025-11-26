@@ -4,11 +4,13 @@ import { getWithExpiry, setWithExpiry, remove } from '../utils/expiringStorage';
 interface ChatSessionState {
   sessionToken: string | null;
   threadToken: string | null;
+  isInitialized: boolean;
 }
 
 const defaultState: ChatSessionState = {
   sessionToken: null,
   threadToken: null,
+  isInitialized: false,
 };
 
 const SESSION_KEY = '__laintern-jwt';
@@ -20,12 +22,11 @@ export const useChatSession = () => {
   useEffect(() => {
     const sessionToken = getWithExpiry<string>(SESSION_KEY);
     const threadToken = getWithExpiry<string>(THREAD_KEY);
-    if (sessionToken || threadToken) {
-      setState({
-        sessionToken: sessionToken ?? null,
-        threadToken: threadToken ?? null,
-      });
-    }
+    setState({
+      sessionToken: sessionToken ?? null,
+      threadToken: threadToken ?? null,
+      isInitialized: true,
+    });
   }, []);
 
   const setSessionToken = useCallback((token: string | null, ttlMs?: number) => {
