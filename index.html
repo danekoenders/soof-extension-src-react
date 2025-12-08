@@ -69,6 +69,10 @@
             language: "en",
             primaryColor: "rgb(26 50 99)",
             secondaryColor: "rgb(76 76 94)",
+            useCircularButton: false,
+            buttonText: "Ask our AI",
+            buttonBackgroundColor: "#ffffff",
+            invertButtonColors: false
           };
         }
 
@@ -76,12 +80,12 @@
           this.shadowRoot.innerHTML = "";
           const style = document.createElement("style");
           style.textContent = `
-      .soof-chat-btn {
+      /* Circular button styles */
+      .soof-chat-btn.circular {
         position: fixed;
         bottom: 32px;
         right: 32px;
         z-index: 999999;
-        background: #fff;
         border-radius: 50%;
         width: 64px;
         height: 64px;
@@ -92,16 +96,77 @@
         cursor: pointer;
         border: none;
         transition: box-shadow 0.2s;
+        font-weight: 300;
       }
-      .soof-chat-btn:hover {
+      .soof-chat-btn.circular:hover {
         box-shadow: 0 4px 24px rgba(0,0,0,0.22);
       }
-      .soof-chat-btn.close-mode {
+      
+      /* Horizontal button styles */
+      .soof-chat-btn.horizontal {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 999999;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 32px;
+        padding: 12px 24px 12px 20px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 
+                    0 0 0 1px rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .soof-chat-btn.horizontal:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 32px rgba(0, 0, 0, 0.16), 
+                    0 0 0 1px rgba(0, 0, 0, 0.08);
+      }
+      .soof-chat-btn.horizontal .icon-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+      }
+      .soof-chat-btn.horizontal .icon-wrapper svg {
+        width: 100%;
+        height: 100%;
+      }
+      .soof-chat-btn.horizontal .button-text {
+        line-height: 1;
+      }
+      
+      /* Close button styles - circular, same dimensions as horizontal */
+      .soof-chat-btn.close {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        z-index: 999999;
+        border-radius: 50%;
+        width: 52px;
+        height: 52px;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: none;
+        transition: box-shadow 0.2s;
         font-size: 32px;
         line-height: 1;
         font-weight: 300;
-        color: #333;
-        z-index: 10000000;
+      }
+      .soof-chat-btn.close:hover {
+        box-shadow: 0 4px 24px rgba(0,0,0,0.22);
       }
       .soof-chat-window {
         /* Window container - main.tsx will handle the actual overlay styling */
@@ -126,9 +191,20 @@
         .soof-chat-btn[data-chat-open="true"] {
           display: none !important;
         }
-        .soof-chat-btn {
+        .soof-chat-btn.circular {
           right: 16px;
           bottom: 16px;
+        }
+        .soof-chat-btn.horizontal {
+          bottom: 16px;
+          right: 16px;
+          padding: 10px 20px 10px 16px;
+          font-size: 14px;
+          gap: 8px;
+        }
+        .soof-chat-btn.close {
+          bottom: 16px;
+          right: 16px;
         }
       }
     `;
@@ -138,18 +214,80 @@
           // On desktop: show as close button (X) when chat is open
           // On mobile: button is hidden when chat is open (via CSS data attribute)
           this.button = document.createElement("button");
-          this.button.className = "soof-chat-btn";
+          const config = this.getConfig();
+          const isCircular = config.useCircularButton;
+          const invertColors = config.invertButtonColors;
+          const primaryColor = config.primaryColor;
+          const bgColor = config.buttonBackgroundColor || '#ffffff';
+          
+          // Determine colors based on invert setting
+          const buttonBg = invertColors ? primaryColor : bgColor;
+          const buttonColor = invertColors ? bgColor : primaryColor;
+          
+          // Simple helper to add opacity to color
+          const addOpacity = (color, opacity) => {
+            // If already rgba/rgb, extract rgb and rebuild with new opacity
+            const rgbMatch = color.match(/\d+/g);
+            if (rgbMatch && rgbMatch.length >= 3) {
+              return `rgba(${rgbMatch[0]}, ${rgbMatch[1]}, ${rgbMatch[2]}, ${opacity})`;
+            }
+            // If hex, convert to rgb
+            if (color.startsWith('#')) {
+              const hex = color.slice(1);
+              const r = parseInt(hex.slice(0, 2), 16);
+              const g = parseInt(hex.slice(2, 4), 16);
+              const b = parseInt(hex.slice(4, 6), 16);
+              return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+            }
+            return color;
+          };
           
           if (!this.isOpen) {
-            // Chat closed: show chat icon (visible on mobile and desktop)
-            this.button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32"><path d="M2 15V5c0-1.1.9-2 2-2h16a2 2 0 0 1 2 2v15a1 1 0 0 1-1.7.7L16.58 17H4a2 2 0 0 1-2-2z"/><path d="M6 7h12a1 1 0 0 1 0 2H6a1 1 0 1 1 0-2zm0 4h8a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2z"/></svg>`;
+            // Chat closed: show appropriate button style
+            this.button.className = isCircular ? 'soof-chat-btn circular' : 'soof-chat-btn horizontal';
+            
+            if (isCircular) {
+              // Circular button: show chat icon (solid background)
+              this.button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M2 15V5c0-1.1.9-2 2-2h16a2 2 0 0 1 2 2v15a1 1 0 0 1-1.7.7L16.58 17H4a2 2 0 0 1-2-2z"/><path d="M6 7h12a1 1 0 0 1 0 2H6a1 1 0 1 1 0-2zm0 4h8a1 1 0 0 1 0 2H6a1 1 0 0 1 0-2z"/></svg>`;
+              // Solid background for circular button
+              this.button.style.backgroundColor = buttonBg;
+            } else {
+              // Horizontal button: show twinkle icon + text (transparent background with blur)
+              const twinkleIcon = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2.47804 0.724976L3.03876 2.56896L4.95609 3.10822L3.03876 3.64749L2.47804 5.49147L1.91733 3.64749L0 3.10822L1.91733 2.56896L2.47804 0.724976Z" fill="currentColor"/>
+                <path d="M7.37144 1.89856L8.64503 6.0869L13 7.31177L8.64503 8.53664L7.37144 12.725L6.09785 8.53664L1.74292 7.31177L6.09785 6.0869L7.37144 1.89856Z" fill="currentColor"/>
+              </svg>`;
+              this.button.innerHTML = `
+                <div class="icon-wrapper">${twinkleIcon}</div>
+                <span class="button-text">${config.buttonText || 'Ask our AI'}</span>
+              `;
+              // Transparent background for horizontal button (glass morphism effect)
+              this.button.style.backgroundColor = addOpacity(buttonBg, 0.85);
+              // Add hover effect to increase opacity
+              this.button.addEventListener('mouseenter', () => {
+                this.button.style.backgroundColor = addOpacity(buttonBg, 0.95);
+              });
+              this.button.addEventListener('mouseleave', () => {
+                this.button.style.backgroundColor = addOpacity(buttonBg, 0.85);
+              });
+            }
+            
+            // Apply text/icon color
+            this.button.style.color = buttonColor;
+            
             this.button.setAttribute("data-chat-open", "false");
             this.button.addEventListener("click", this.handleButtonClick);
             this.shadowRoot.appendChild(this.button);
           } else {
             // Chat open: show close icon (X) for desktop, but hide on mobile
+            // Use close button class (same size as horizontal, but circular)
+            this.button.className = 'soof-chat-btn close';
             this.button.innerHTML = "&times;";
-            this.button.classList.add("close-mode");
+            
+            // Apply same colors as main button
+            this.button.style.backgroundColor = buttonBg;
+            this.button.style.color = buttonColor;
+            
             this.button.setAttribute("data-chat-open", "true");
             this.button.addEventListener("click", this.handleCloseClick);
             
