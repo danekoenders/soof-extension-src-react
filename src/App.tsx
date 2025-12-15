@@ -66,9 +66,9 @@ export default function App({ config }: AppProps) {
   const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
   const isMobile = useMobileDetection();
   const isMobileWidget = config.type === 'widget' && isMobile;
-  const hostOrigin = useHost();
-  const BACKEND_BASE = `${hostOrigin}/apps/laintern-proxy`;
-  // const BACKEND_BASE = "http://localhost:3000";
+  // const hostOrigin = useHost();
+  // const BACKEND_BASE = `${hostOrigin}/apps/laintern-proxy`;
+  const BACKEND_BASE = "http://localhost:3000";
   const [sendFn, setSendFn] = useState<
     (text: string, requiredTool?: string) => void
   >(() => () => {});
