@@ -166,6 +166,16 @@ export default function StreamingChat({
           body.requiredTool = requiredTool;
         }
         
+        // Add clientId from localStorage for analytics tracking
+        try {
+          const clientId = localStorage.getItem('__laintern_client_id');
+          if (clientId) {
+            body.clientId = clientId;
+          }
+        } catch (e) {
+          console.warn('Failed to get clientId from localStorage:');
+        }
+        
         const response = await fetch(`${base}/api/agent/message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
