@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useHost } from "../../hooks/useHost";
+import { useShopifyAnalytics } from "../../hooks/useShopifyAnalytics";
 import type { ProductMeta } from "../../types/product";
 
 interface Props {
@@ -19,6 +20,7 @@ function extractVariantId(gid: string) {
 
 export default function ProductCard({ product }: Props) {
   const host = useHost();
+  const { publish: publishAnalytics } = useShopifyAnalytics();
   const { title, image_url, price_range, variants } = product;
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
 
@@ -40,33 +42,39 @@ export default function ProductCard({ product }: Props) {
   const variantId = selectedVariant?.variant_id ? extractVariantId(selectedVariant.variant_id) : undefined;
   const cardHref = variantId ? `${host}/variants/${variantId}` : undefined;
 
+  const handleCardClick = () => {
+    publishAnalytics('laintern:product_card_clicked', {
+      productTitle: title,
+      variantTitle: selectedVariant?.title || null,
+      variantId: variantId || null,
+      price: selectedVariant?.price || null,
+      currency: selectedVariant?.currency || price_range?.currency || null,
+    });
+  };
+
   return (
-    <div className="max-w-[300px] p-2.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
-      <div className="flex gap-2.5">
-        {/* Image on left */}
-        <a
-          href={cardHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="no-underline flex items-center"
-        >
-          {displayImage && (
-            <img
-              src={displayImage}
-              alt={displayTitle}
-              className="w-16 h-16 object-contain rounded"
-            />
-          )}
-        </a>
-        
-        {/* Content on right */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between">
-          <a
-            href={cardHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="no-underline text-inherit"
-          >
+    <a
+      href={cardHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="no-underline text-inherit block max-w-[300px] laintern-sources-product-card-link"
+      onClick={handleCardClick}
+    >
+      <div className="p-2.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
+        <div className="flex gap-2.5">
+          {/* Image on left */}
+          <div className="flex items-center">
+            {displayImage && (
+              <img
+                src={displayImage}
+                alt={displayTitle}
+                className="w-16 h-16 object-contain rounded"
+              />
+            )}
+          </div>
+          
+          {/* Content on right */}
+          <div className="flex-1 min-w-0 flex flex-col justify-between">
             <div className="flex flex-col gap-0.5">
               <strong className="text-xs leading-tight line-clamp-1">{title}</strong>
               {variants && variants.length === 1 && (
@@ -74,43 +82,37 @@ export default function ProductCard({ product }: Props) {
               )}
               {priceText && <span className="text-xs font-semibold text-blue-600 mt-0.5">{priceText}</span>}
             </div>
-          </a>
-          
-          {/* Variant switcher - compact horizontal */}
-          {variants && variants.length > 1 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {variants.map((variant, idx) => {
-                return (
-                  <a
+            
+            {/* Variant switcher - compact horizontal */}
+            {variants && variants.length > 1 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {variants.map((variant, idx) => (
+                  <button
                     key={variant.variant_id}
-                    rel="noopener noreferrer"
-                    className="no-underline"
+                    type="button"
                     onClick={e => {
-                      setSelectedVariantIdx(idx);
-                      if (!variant.available) e.preventDefault();
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (variant.available) setSelectedVariantIdx(idx);
                     }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-all ${
+                      idx === selectedVariantIdx 
+                        ? 'border border-blue-600 bg-blue-50 text-blue-700 font-semibold' 
+                        : 'border border-gray-200 bg-white text-gray-700'
+                    } ${
+                      variant.available ? 'opacity-100' : 'opacity-40 cursor-not-allowed'
+                    }`}
+                    disabled={!variant.available}
+                    title={variant.available ? undefined : "Not available"}
                   >
-                    <button
-                      type="button"
-                      className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-all ${
-                        idx === selectedVariantIdx 
-                          ? 'border border-blue-600 bg-blue-50 text-blue-700 font-semibold' 
-                          : 'border border-gray-200 bg-white text-gray-700'
-                      } ${
-                        variant.available ? 'opacity-100' : 'opacity-40 cursor-not-allowed'
-                      }`}
-                      disabled={!variant.available}
-                      title={variant.available ? undefined : "Not available"}
-                    >
-                      {variant.title}
-                    </button>
-                  </a>
-                );
-              })}
-            </div>
-          )}
+                    {variant.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </a>
   );
 }

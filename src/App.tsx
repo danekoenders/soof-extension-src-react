@@ -14,6 +14,7 @@ import { getPhaseMessage } from "./types/phase";
 import type { SoofConfig } from "./main";
 import { useMobileDetection } from "./hooks/useMobileDetection";
 import { useHost } from "./hooks/useHost";
+import { useShopifyAnalytics } from "./hooks/useShopifyAnalytics";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
@@ -68,6 +69,7 @@ export default function App({ config }: AppProps) {
   const isMobileWidget = config.type === 'widget' && isMobile;
   const hostOrigin = useHost();
   const BACKEND_BASE = `${hostOrigin}/apps/laintern-proxy`;
+  const { publish: publishAnalytics } = useShopifyAnalytics();
   // const BACKEND_BASE = "http://localhost:3000";
   const [sendFn, setSendFn] = useState<
     (text: string, requiredTool?: string) => void
@@ -624,6 +626,22 @@ export default function App({ config }: AppProps) {
     setIsSourcesCollapsed(true);
     sendFn(text, requiredTool);
   }, [isWaitingForSessionState, isLoadingThread, chatSession.threadToken, sendFn]);
+
+  // Track if chat_opened event has been published (to prevent duplicates)
+  const chatOpenedPublishedRef = useRef(false);
+
+  // Publish analytics event when chat is opened (widget only, fires once)
+  useEffect(() => {
+    // Only fire once when loading completes for widgets
+    if (config.type === 'widget' && !isLoadingShop && !isLoadingThread && !chatOpenedPublishedRef.current) {
+      chatOpenedPublishedRef.current = true;
+      publishAnalytics('laintern:chat_opened', {
+        type: 'widget',
+        isMobile: isMobile,
+        hasThread: !!chatSession.threadToken,
+      });
+    }
+  }, [config.type, isLoadingShop, isLoadingThread, publishAnalytics, isMobile, chatSession.threadToken]);
 
   // Expose directMessage function globally for external calls (e.g., from liquid file)
   useEffect(() => {
