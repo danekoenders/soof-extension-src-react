@@ -105,11 +105,14 @@ export interface SoofConfig {
           layoutViewportHeight - height - offsetTop
         );
 
+        const translateY = offsetTop - keyboardHeight;
+
         overlay.style.setProperty("--vv-layout-height", `${layoutViewportHeight}px`);
         overlay.style.setProperty("--vvh", `${height}px`);
         overlay.style.setProperty("--vvw", `${width}px`);
         overlay.style.setProperty("--vv-offset-top", `${offsetTop}px`);
         overlay.style.setProperty("--vv-keyboard-height", `${keyboardHeight}px`);
+        overlay.style.setProperty("--vv-translate-y", `${translateY}px`);
       };
 
       const scheduleViewportUpdate = () => {
