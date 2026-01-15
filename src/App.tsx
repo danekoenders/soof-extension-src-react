@@ -972,7 +972,7 @@ export default function App({ config }: AppProps) {
         <StreamingChat
           apiBase={BACKEND_BASE}
           sessionToken={chatSession.sessionToken}
-          localLanguage={config.language || "en"}
+          language={config.language || "en"}
           threadToken={chatSession.threadToken}
           setThreadToken={setThreadToken}
           setSessionToken={setSessionToken}

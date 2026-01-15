@@ -39,7 +39,7 @@ type SimpleMessage = {
 interface StreamingChatProps {
   apiBase: string; // e.g., origin for proxy or full backend origin
   sessionToken: string | null;
-  localLanguage: string;
+  language: string;
   threadToken: string | null;
   setThreadToken: (token: string | null) => void;
   setSessionToken: (token: string | null, ttlMs?: number) => void;
@@ -52,7 +52,7 @@ interface StreamingChatProps {
 export default function StreamingChat({
   apiBase,
   sessionToken,
-  localLanguage,
+  language,
   threadToken,
   setThreadToken,
   setSessionToken,
@@ -65,7 +65,7 @@ export default function StreamingChat({
   const cfgRef = useRef({
     apiBase,
     sessionToken,
-    localLanguage,
+    language,
     threadToken,
   });
   const guardrailStateRef = useRef<LocalGuardrailState | null>(null);
@@ -75,8 +75,8 @@ export default function StreamingChat({
 
   // keep latest config in a ref so sendMessage always uses fresh values
   useEffect(() => {
-    cfgRef.current = { apiBase, sessionToken, localLanguage, threadToken };
-  }, [apiBase, sessionToken, localLanguage, threadToken]);
+    cfgRef.current = { apiBase, sessionToken, language, threadToken };
+  }, [apiBase, sessionToken, language, threadToken]);
 
   useEffect(() => {
     // Initialize from initialMessages if empty
@@ -141,7 +141,7 @@ export default function StreamingChat({
         const {
           apiBase: base,
           sessionToken: token,
-          localLanguage: lang,
+          language: lang,
           threadToken,
         } = cfgRef.current;
         
@@ -151,7 +151,7 @@ export default function StreamingChat({
         
         const body: Record<string, any> = {
           message: text,
-          localLanguage: lang,
+          language: lang,
         };
 
         if (token) {
