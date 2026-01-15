@@ -343,11 +343,17 @@
     width: 100% !important;
     /* Height is set by JavaScript using window.innerHeight or visualViewport.height */
     /* This ensures it accounts for Safari's browser UI (address bar, search bar) */
-    /* Don't set height in CSS - let JavaScript handle it dynamically */
+    height: var(--vv-layout-height, 100vh) !important;
+    max-height: var(--vv-layout-height, 100vh) !important;
+    min-height: var(--vv-layout-height, 100vh) !important;
+    width: var(--vvw, 100vw) !important;
+    transform: translateY(var(--vv-offset-top, 0px)) !important;
     /* Support for safe areas (iOS Safari notch, home indicator) */
     /* Note: Browser UI (address bar) height is handled by JavaScript */
     padding-top: env(safe-area-inset-top, 0px) !important;
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-bottom: calc(
+      env(safe-area-inset-bottom, 0px) + var(--vv-keyboard-height, 0px)
+    ) !important;
     padding-left: env(safe-area-inset-left, 0px) !important;
     padding-right: env(safe-area-inset-right, 0px) !important;
     overflow: hidden !important;

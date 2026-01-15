@@ -867,6 +867,9 @@ export default function App({ config }: AppProps) {
           // Method 1: Try to find mount point in shadow root and use its close function
           const mountPoint = rootNode.getElementById('laintern-agent-react-root');
           if (mountPoint && typeof (mountPoint as any).__closeChat === 'function') {
+            if (typeof (mountPoint as any).__restoreScrollLock === 'function') {
+              (mountPoint as any).__restoreScrollLock();
+            }
             (mountPoint as any).__closeChat();
             return;
           }
