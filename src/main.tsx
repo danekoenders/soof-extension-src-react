@@ -71,7 +71,6 @@ export interface SoofConfig {
       // Apply safe area insets for iOS Safari (notch, home indicator, rounded corners, browser UI)
       // Use CSS custom properties for safe areas
       overlay.style.setProperty('padding-top', 'max(env(safe-area-inset-top, 0), 0px)');
-      overlay.style.setProperty('padding-bottom', 'max(env(safe-area-inset-bottom, 0), 0px)');
       overlay.style.setProperty('padding-left', 'max(env(safe-area-inset-left, 0), 0px)');
       overlay.style.setProperty('padding-right', 'max(env(safe-area-inset-right, 0), 0px)');
       // Use actual window dimensions for Safari (accounts for browser UI like address bar)
@@ -86,15 +85,31 @@ export interface SoofConfig {
       overlay.style.overflow = 'hidden';
       
       let viewportRaf = 0;
+      let layoutViewportHeight = window.innerHeight;
       const setViewportVars = () => {
         const visualViewport = window.visualViewport;
         const height = visualViewport?.height ?? window.innerHeight;
         const width = visualViewport?.width ?? window.innerWidth;
         const offsetTop = visualViewport?.offsetTop ?? 0;
+        const keyboardVisible =
+          visualViewport &&
+          visualViewport.height + visualViewport.offsetTop <
+            window.innerHeight - 20;
 
+        if (!keyboardVisible) {
+          layoutViewportHeight = window.innerHeight;
+        }
+
+        const keyboardHeight = Math.max(
+          0,
+          layoutViewportHeight - height - offsetTop
+        );
+
+        overlay.style.setProperty("--vv-layout-height", `${layoutViewportHeight}px`);
         overlay.style.setProperty("--vvh", `${height}px`);
         overlay.style.setProperty("--vvw", `${width}px`);
         overlay.style.setProperty("--vv-offset-top", `${offsetTop}px`);
+        overlay.style.setProperty("--vv-keyboard-height", `${keyboardHeight}px`);
       };
 
       const scheduleViewportUpdate = () => {
