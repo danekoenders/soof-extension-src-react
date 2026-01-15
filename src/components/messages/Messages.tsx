@@ -195,7 +195,7 @@ const Messages = forwardRef<MessagesRef, MessagesProps>(({ messages, onOptionSel
   };
 
   return (
-    <div ref={scrollContainerRef} className="flex flex-col flex-grow overflow-y-auto">
+    <div ref={scrollContainerRef} className="flex flex-col flex-grow overflow-y-auto overscroll-contain">
       <div ref={contentRef} className="flex flex-col px-4 pt-4 gap-2 pb-4">
         {isLoadingThread ? (
           <SkeletonMessages />
