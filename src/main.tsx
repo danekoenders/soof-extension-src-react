@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import indexCss from "./index.css?inline";
+import { isMobileViewport } from "./utils/mobile";
 
 // Configuration interface for chatbot settings
 export interface SoofConfig {
@@ -58,11 +59,7 @@ export interface SoofConfig {
   // Different rendering for widget vs embedded
   if (config.type === 'widget') {
     // Detect mobile screen - check both width and user agent
-    const checkMobile = () => {
-      return window.innerWidth <= 768 || 
-             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    };
-    const isMobile = checkMobile();
+    const isMobile = isMobileViewport();
     
     // Build overlay using Tailwind classes for widget
     const overlay = document.createElement('div');
@@ -74,7 +71,6 @@ export interface SoofConfig {
       // Apply safe area insets for iOS Safari (notch, home indicator, rounded corners, browser UI)
       // Use CSS custom properties for safe areas
       overlay.style.setProperty('padding-top', 'max(env(safe-area-inset-top, 0), 0px)');
-      overlay.style.setProperty('padding-bottom', 'max(env(safe-area-inset-bottom, 0), 0px)');
       overlay.style.setProperty('padding-left', 'max(env(safe-area-inset-left, 0), 0px)');
       overlay.style.setProperty('padding-right', 'max(env(safe-area-inset-right, 0), 0px)');
       // Use actual window dimensions for Safari (accounts for browser UI like address bar)
@@ -88,164 +84,136 @@ export interface SoofConfig {
       overlay.style.margin = '0';
       overlay.style.overflow = 'hidden';
       
-      // Store initial viewport height (when keyboard is not visible)
-      let initialViewportHeight: number = window.innerHeight;
-      if (window.visualViewport) {
-        initialViewportHeight = window.visualViewport.height;
-      }
-      
-      // Track if input is focused (keyboard is visible)
-      let isInputFocused = false;
-      const checkInputFocus = () => {
-        // Check if any input in the overlay is focused
-        const activeElement = shadowRoot.activeElement || document.activeElement;
-        const isInput = activeElement && (
-          activeElement.tagName === 'INPUT' ||
-          activeElement.tagName === 'TEXTAREA' ||
-          activeElement.getAttribute('contenteditable') === 'true'
+      let viewportRaf = 0;
+      let layoutViewportHeight = window.innerHeight;
+      const setViewportVars = () => {
+        const visualViewport = window.visualViewport;
+        const height = visualViewport?.height ?? window.innerHeight;
+        const width = visualViewport?.width ?? window.innerWidth;
+        const offsetTop = visualViewport?.offsetTop ?? 0;
+        const keyboardVisible =
+          visualViewport &&
+          visualViewport.height + visualViewport.offsetTop <
+            window.innerHeight - 20;
+
+        if (!keyboardVisible) {
+          layoutViewportHeight = window.innerHeight;
+        }
+
+        const keyboardHeight = Math.max(
+          0,
+          layoutViewportHeight - height - offsetTop
         );
-        isInputFocused = !!(isInput && overlay.contains(activeElement as Node));
+
+        const translateY = offsetTop - keyboardHeight;
+
+        overlay.style.setProperty("--vv-layout-height", `${layoutViewportHeight}px`);
+        overlay.style.setProperty("--vvh", `${height}px`);
+        overlay.style.setProperty("--vvw", `${width}px`);
+        overlay.style.setProperty("--vv-offset-top", `${offsetTop}px`);
+        overlay.style.setProperty("--vv-keyboard-height", `${keyboardHeight}px`);
+        overlay.style.setProperty("--vv-translate-y", `${translateY}px`);
       };
-      
-      // Use Visual Viewport API for Safari (most accurate for browser UI)
-      // This accounts for the browser UI (address bar, search bar) dynamically
-      // The overlay should fill the visible viewport, starting from the top of the screen
-      const updateOverlayDimensions = () => {
-        // Check if input is currently focused
-        checkInputFocus();
-        
-        // Get the actual visible viewport height (excludes browser UI)
-        // Use Visual Viewport API if available (best for Safari iOS)
-        let currentViewportHeight: number;
-        
-        if (window.visualViewport) {
-          // Visual Viewport API gives the actual visible area (excludes browser UI)
-          // This is the height of the area the user can actually see
-          currentViewportHeight = window.visualViewport.height;
-          
-          // Update initial height if keyboard is not visible and viewport is larger
-          // (browser UI might have hidden)
-          if (!isInputFocused && currentViewportHeight > initialViewportHeight) {
-            initialViewportHeight = currentViewportHeight;
-          }
-        } else {
-          // Fallback: use window.innerHeight (excludes browser UI on most browsers)
-          currentViewportHeight = window.innerHeight;
-          if (!isInputFocused && currentViewportHeight > initialViewportHeight) {
-            initialViewportHeight = currentViewportHeight;
-          }
+
+      const scheduleViewportUpdate = () => {
+        if (viewportRaf) {
+          cancelAnimationFrame(viewportRaf);
         }
-        
-        // When keyboard is visible, maintain the initial height to prevent jumping
-        // When keyboard is hidden, use the current viewport height
-        const targetHeight = isInputFocused ? initialViewportHeight : currentViewportHeight;
-        
-        // Ensure we have a valid height
-        const visibleHeight = targetHeight > 0 ? targetHeight : window.innerHeight || document.documentElement.clientHeight;
-        
-        // Set overlay to fill viewport exactly
-        // When keyboard is visible, maintain full height to prevent jumping
-        overlay.style.setProperty('height', `${visibleHeight}px`, 'important');
-        overlay.style.setProperty('max-height', `${visibleHeight}px`, 'important');
-        overlay.style.setProperty('min-height', `${visibleHeight}px`, 'important');
-        
-        // Always position at top: 0 (start from top of screen)
-        // Don't adjust position when keyboard appears - maintain stable position
-        overlay.style.setProperty('top', '0', 'important');
-        overlay.style.setProperty('left', '0', 'important');
-        overlay.style.setProperty('right', '0', 'important');
-        overlay.style.setProperty('bottom', 'auto', 'important');
-        
-        // When keyboard is visible, prevent overlay from shrinking
-        // The content inside can scroll, but overlay maintains full height
-        if (isInputFocused) {
-          overlay.style.setProperty('position', 'fixed', 'important');
-          overlay.style.setProperty('transform', 'none', 'important');
-        }
+        viewportRaf = requestAnimationFrame(() => {
+          setViewportVars();
+        });
       };
-      
-      // Initial setup
-      updateOverlayDimensions();
-      
-      // Track input focus changes to detect keyboard
-      shadowRoot.addEventListener('focusin', (e) => {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true') {
-          // Input focused - keyboard will appear
-          // Delay update to allow keyboard animation
-          setTimeout(() => {
-            updateOverlayDimensions();
-          }, 100);
-        }
-      }, true);
-      
-      shadowRoot.addEventListener('focusout', (e) => {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true') {
-          // Input blurred - keyboard will hide
-          // Delay update to allow keyboard animation
-          setTimeout(() => {
-            updateOverlayDimensions();
-          }, 300);
-        }
-      }, true);
-      
-      // Update on resize/orientation change for Safari (address bar can show/hide)
-      const handleViewportChange = () => {
-        // Use requestAnimationFrame to ensure viewport has updated
-        requestAnimationFrame(updateOverlayDimensions);
-      };
-      
-      // Listen for viewport changes
-      window.addEventListener('resize', handleViewportChange);
-      window.addEventListener('orientationchange', () => {
-        // Reset initial height on orientation change
-        initialViewportHeight = window.innerHeight;
-        if (window.visualViewport) {
-          initialViewportHeight = window.visualViewport.height;
-        }
-        // Longer delay for orientation change to ensure viewport has updated
-        setTimeout(() => {
-          requestAnimationFrame(updateOverlayDimensions);
-        }, 150);
-      });
-      
-      // Use Visual Viewport API for Safari (most accurate for browser UI changes)
-      // This fires when the browser UI shows/hides (address bar, etc.)
+
+      setViewportVars();
+
+      window.addEventListener("resize", scheduleViewportUpdate);
+      window.addEventListener("orientationchange", scheduleViewportUpdate);
+
       if (window.visualViewport) {
-        const handleVisualViewportChange = () => {
-          // Only update if input is not focused (keyboard is not visible)
-          // When keyboard is visible, we maintain the initial height
-          if (!isInputFocused) {
-            requestAnimationFrame(updateOverlayDimensions);
-          }
-        };
-        
-        window.visualViewport.addEventListener('resize', handleVisualViewportChange);
-        // Note: We don't adjust position on scroll - we want overlay fixed to top
+        window.visualViewport.addEventListener("resize", scheduleViewportUpdate);
+        window.visualViewport.addEventListener("scroll", scheduleViewportUpdate);
       }
       
-      // Prevent body scroll when overlay is open (Safari issue)
-      // Note: The overlay's overflow: hidden should prevent scrolling,
-      // but we also prevent touchmove on non-scrollable areas
-      overlay.addEventListener('touchmove', (e) => {
-        // Allow scrolling within scrollable containers inside the overlay
-        const target = e.target as HTMLElement;
-        const scrollable = target.closest('[data-scrollable]') || 
-                          target.closest('.overflow-auto') ||
-                          target.closest('.overflow-y-auto') ||
-                          target.closest('[style*="overflow"]');
-        // Only prevent default if not scrolling within a scrollable container
-        if (!scrollable || scrollable === overlay) {
-          // Check if we're at the scroll boundaries
-          const element = scrollable || overlay;
-          if (element.scrollTop === 0 && e.touches[0].clientY > (e.touches[0].clientY - 10)) {
-            e.preventDefault();
-          } else if (element.scrollHeight <= element.clientHeight) {
-            e.preventDefault();
+      const html = document.documentElement;
+      const body = document.body;
+      const originalHtmlOverflow = html.style.overflow;
+      const originalBodyOverflow = body.style.overflow;
+      html.style.overflow = "hidden";
+      body.style.overflow = "hidden";
+
+      const restoreScrollLock = () => {
+        html.style.overflow = originalHtmlOverflow;
+        body.style.overflow = originalBodyOverflow;
+      };
+
+      (overlay as any).__restoreScrollLock = restoreScrollLock;
+
+      const getScrollableContainer = (target: HTMLElement | null) => {
+        if (!target) return null;
+        return (
+          target.closest("[data-scrollable]") ||
+          target.closest(".overflow-auto") ||
+          target.closest(".overflow-y-auto") ||
+          target.closest('[style*="overflow"]')
+        ) as HTMLElement | null;
+      };
+
+      let lastTouchY = 0;
+      overlay.addEventListener(
+        "touchstart",
+        (event) => {
+          lastTouchY = event.touches[0].clientY;
+        },
+        { passive: true }
+      );
+
+      overlay.addEventListener(
+        "touchmove",
+        (event) => {
+          const target = event.target as HTMLElement;
+          const scrollable = getScrollableContainer(target);
+          const currentY = event.touches[0].clientY;
+          const deltaY = currentY - lastTouchY;
+          lastTouchY = currentY;
+
+          if (!scrollable || scrollable === overlay) {
+            event.preventDefault();
+            return;
           }
-        }
-      }, { passive: false });
+
+          const atTop = scrollable.scrollTop <= 0;
+          const atBottom =
+            scrollable.scrollHeight - scrollable.scrollTop <=
+            scrollable.clientHeight + 1;
+
+          if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+            event.preventDefault();
+          }
+        },
+        { passive: false }
+      );
+
+      overlay.addEventListener(
+        "wheel",
+        (event) => {
+          const target = event.target as HTMLElement;
+          const scrollable = getScrollableContainer(target);
+          if (!scrollable || scrollable === overlay) {
+            event.preventDefault();
+            return;
+          }
+
+          const atTop = scrollable.scrollTop <= 0;
+          const atBottom =
+            scrollable.scrollHeight - scrollable.scrollTop <=
+            scrollable.clientHeight + 1;
+
+          if ((atTop && event.deltaY < 0) || (atBottom && event.deltaY > 0)) {
+            event.preventDefault();
+          }
+        },
+        { passive: false }
+      );
       
     } else {
       overlay.className = 'fixed inset-0 bg-black/50 flex justify-center items-center z-[999999]';
@@ -254,6 +222,9 @@ export interface SoofConfig {
     // Utility: close overlay - store reference to host element
     (overlay as any).__hostElement = hostEl;
     const closeOverlay = () => {
+      if ((overlay as any).__restoreScrollLock) {
+        (overlay as any).__restoreScrollLock();
+      }
       if (hostEl && typeof hostEl.closeChatWindow === 'function') {
         hostEl.closeChatWindow();
       } else {
@@ -292,16 +263,14 @@ export interface SoofConfig {
     if (hostEl) {
       (existingMountPoint as any).__hostElement = hostEl;
     }
+    if ((overlay as any).__restoreScrollLock) {
+      (existingMountPoint as any).__restoreScrollLock = (overlay as any).__restoreScrollLock;
+    }
     
     // Handle window resize to update mobile state
     const handleResize = () => {
-      const wasMobile = isMobile;
-      const nowMobile = checkMobile();
-      if (wasMobile !== nowMobile) {
-        // Re-mount if mobile state changed significantly
-        // For now, just update the data attribute
-        existingMountPoint.setAttribute('data-is-mobile', nowMobile.toString());
-      }
+      const nowMobile = isMobileViewport();
+      existingMountPoint.setAttribute('data-is-mobile', nowMobile.toString());
     };
     window.addEventListener('resize', handleResize);
   } else if (config.type === 'embedded') {
