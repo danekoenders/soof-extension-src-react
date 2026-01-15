@@ -91,19 +91,19 @@ export interface SoofConfig {
         const height = visualViewport?.height ?? window.innerHeight;
         const width = visualViewport?.width ?? window.innerWidth;
         const offsetTop = visualViewport?.offsetTop ?? 0;
+        const maxLayoutHeight = Math.max(layoutViewportHeight, window.innerHeight);
         const keyboardVisible =
-          visualViewport &&
-          visualViewport.height + visualViewport.offsetTop <
-            window.innerHeight - 20;
+          visualViewport && height + offsetTop < maxLayoutHeight - 20;
 
-        if (!keyboardVisible) {
+        if (
+          !keyboardVisible &&
+          (window.innerHeight >= layoutViewportHeight ||
+            Math.abs(window.innerHeight - layoutViewportHeight) > 100)
+        ) {
           layoutViewportHeight = window.innerHeight;
         }
 
-        const keyboardHeight = Math.max(
-          0,
-          layoutViewportHeight - height - offsetTop
-        );
+        const keyboardHeight = Math.max(0, layoutViewportHeight - height - offsetTop);
 
         const translateY = offsetTop - keyboardHeight;
 
