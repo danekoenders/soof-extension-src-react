@@ -65,24 +65,27 @@ export interface SoofConfig {
     const overlay = document.createElement('div');
     overlay.setAttribute('data-laintern-agent-overlay', '');
     
-    // Mobile: fullscreen overlay with safe areas, Desktop: centered with backdrop
-    if (isMobile) {
-      overlay.className = 'fixed inset-0 bg-white z-[999999] flex flex-col';
-      // Apply safe area insets for iOS Safari (notch, home indicator, rounded corners, browser UI)
-      // Use CSS custom properties for safe areas
-      overlay.style.setProperty('padding-top', 'max(env(safe-area-inset-top, 0), 0px)');
-      overlay.style.setProperty('padding-left', 'max(env(safe-area-inset-left, 0), 0px)');
-      overlay.style.setProperty('padding-right', 'max(env(safe-area-inset-right, 0), 0px)');
-      // Use actual window dimensions for Safari (accounts for browser UI like address bar)
-      // This ensures the overlay doesn't extend beyond the visible viewport
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.right = '0';
-      overlay.style.width = '100%';
-      overlay.style.borderRadius = '0';
-      overlay.style.margin = '0';
-      overlay.style.overflow = 'hidden';
+      // Mobile: fullscreen overlay with safe areas, Desktop: centered with backdrop
+      if (isMobile) {
+        overlay.className = 'fixed bg-white z-[999999] flex flex-col';
+        // Apply safe area insets for iOS Safari (notch, home indicator, rounded corners, browser UI)
+        // Use CSS custom properties for safe areas
+        overlay.style.setProperty('padding-top', 'max(env(safe-area-inset-top, 0), 0px)');
+        overlay.style.setProperty('padding-left', 'max(env(safe-area-inset-left, 0), 0px)');
+        overlay.style.setProperty('padding-right', 'max(env(safe-area-inset-right, 0), 0px)');
+        overlay.style.setProperty('padding-bottom', 'max(env(safe-area-inset-bottom, 0), 0px)');
+        // Use actual window dimensions for Safari (accounts for browser UI like address bar)
+        // This ensures the overlay doesn't extend beyond the visible viewport
+        overlay.style.position = 'fixed';
+        overlay.style.left = '0';
+        overlay.style.right = '0';
+        overlay.style.width = '100%';
+        overlay.style.borderRadius = '0';
+        overlay.style.margin = '0';
+        overlay.style.overflow = 'hidden';
+        // Initial positioning - will be updated by setViewportVars
+        overlay.style.top = '0';
+        overlay.style.height = `${window.innerHeight}px`;
       
       let viewportRaf = 0;
       let layoutViewportHeight = window.innerHeight;
@@ -105,14 +108,19 @@ export interface SoofConfig {
 
         const keyboardHeight = Math.max(0, layoutViewportHeight - height - offsetTop);
 
-        const translateY = offsetTop - keyboardHeight;
-
         overlay.style.setProperty("--vv-layout-height", `${layoutViewportHeight}px`);
         overlay.style.setProperty("--vvh", `${height}px`);
         overlay.style.setProperty("--vvw", `${width}px`);
         overlay.style.setProperty("--vv-offset-top", `${offsetTop}px`);
         overlay.style.setProperty("--vv-keyboard-height", `${keyboardHeight}px`);
-        overlay.style.setProperty("--vv-translate-y", `${translateY}px`);
+        
+        // Position overlay to fill the visible viewport (above keyboard)
+        // Top position matches the visual viewport offset (how much viewport moved down)
+        overlay.style.top = `${offsetTop}px`;
+        // Height matches the visual viewport height (visible area above keyboard)
+        overlay.style.height = `${height}px`;
+        // Remove any transform as we're using top/height positioning
+        overlay.style.transform = 'none';
       };
 
       const scheduleViewportUpdate = () => {
