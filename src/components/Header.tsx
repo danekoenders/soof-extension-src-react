@@ -27,9 +27,9 @@ export default function Header({
       style={{
         ...headerGradient,
         // Add safe area padding for mobile widget (Safari notch)
-        paddingTop: showCloseButton ? 'max(env(safe-area-inset-top, 0px), 12px)' : undefined,
-        paddingRight: showCloseButton ? 'max(env(safe-area-inset-right, 0px), 16px)' : undefined,
-        paddingLeft: showCloseButton ? 'max(env(safe-area-inset-left, 0px), 16px)' : undefined,
+        padding: showCloseButton
+          ? 'max(env(safe-area-inset-top, 0px), 12px) max(env(safe-area-inset-right, 0px), 16px) max(env(safe-area-inset-bottom, 0px), 12px) max(env(safe-area-inset-left, 0px), 16px)'
+          : undefined,
       }}
     >
       <div className="flex flex-col flex-1">
@@ -57,9 +57,11 @@ export default function Header({
             className="bg-transparent hover:bg-white/20 active:bg-white/30 w-6 h-6 flex items-center justify-center text-white text-lg font-light cursor-pointer transition-all duration-200 touch-manipulation"
             aria-label="Close chat"
             style={{
-              minWidth: '24px',
-              minHeight: '24px',
+              fontSize: '26px',
+              minWidth: '26px',
+              minHeight: '26px',
               lineHeight: '1',
+              marginTop: '-4px',
             }}
           >
             ×
