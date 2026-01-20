@@ -285,6 +285,7 @@ export default function StreamingChat({
                     
                     if (last && last.type === "ai" && last.content) {
                       guardrailStateRef.current = {
+                        guardrailEnabled: true, // Validation phase means guardrail is enabled
                         wasRegenerated: false,
                         validationPhase: event.phase,
                       };
@@ -329,6 +330,7 @@ export default function StreamingChat({
                       }
                     } else {
                       guardrailStateRef.current = {
+                        guardrailEnabled: true, // Regeneration phase means guardrail is enabled
                         wasRegenerated: true,
                         validationPhase: event.phase,
                         hasClearedForRegen: false, // CRITICAL: Set to false so first delta will clear content
@@ -491,19 +493,29 @@ export default function StreamingChat({
                       last._blockChanges = [...blockChangesRef.current];
                     }
                     
-                    // ALWAYS update validation phase to 'done' so the "Checken..." indicator disappears
-                    // Even if guardrailData doesn't exist yet, create it
-                    if (last._guardrailData) {
-                      last._guardrailData = {
-                        ...last._guardrailData,
-                        validationPhase: 'done',
-                      };
-                    } else if (guardrailStateRef.current) {
-                      // Create guardrailData from state if it doesn't exist yet
-                      last._guardrailData = {
-                        ...guardrailStateRef.current,
-                        validationPhase: 'done',
-                      };
+                    // Check if guardrail was enabled for this response
+                    const guardrailEnabled = event.guardrailEnabled ?? true; // Default to true for backward compatibility
+                    
+                    if (!guardrailEnabled) {
+                      // No guardrail active - clear any guardrail data so badge won't show
+                      last._guardrailData = undefined;
+                      guardrailStateRef.current = null;
+                    } else {
+                      // Guardrail was active - update validation phase to 'done'
+                      if (last._guardrailData) {
+                        last._guardrailData = {
+                          ...last._guardrailData,
+                          guardrailEnabled: true,
+                          validationPhase: 'done',
+                        };
+                      } else if (guardrailStateRef.current) {
+                        // Create guardrailData from state if it doesn't exist yet
+                        last._guardrailData = {
+                          ...guardrailStateRef.current,
+                          guardrailEnabled: true,
+                          validationPhase: 'done',
+                        };
+                      }
                     }
                   }
                   
@@ -627,21 +639,27 @@ export default function StreamingChat({
                     }
                   }
                   
-                  // Extract guardrails data from new backend structure
+                  // Extract guardrails data from new backend structure (can be null if no guardrail active)
                   const guardrails = event.guardrails;
                   
                   if (lastTextAiMessage) {
                     (lastTextAiMessage as any)._stream_done = true;
                     
-                    // Add guardrail data if present
                     if (guardrails) {
+                      // Guardrail was active - add guardrail data
                       const guardrailData: GuardrailData = {
+                        guardrailEnabled: true,
+                        guardrailName: guardrails.name,
                         wasRegenerated: guardrails.wasRegenerated,
                         claims: guardrails.claims,
+                        violations: guardrails.violations,
                         validationPhase: 'done',
                       };
                       
                       (lastTextAiMessage as any)._guardrailData = guardrailData;
+                    } else {
+                      // No guardrail active - ensure no badge is shown
+                      (lastTextAiMessage as any)._guardrailData = undefined;
                     }
                     
                     guardrailStateRef.current = null; // Reset state

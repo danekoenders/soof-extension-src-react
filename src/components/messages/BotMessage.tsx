@@ -322,13 +322,15 @@ export default function BotMessage({
               )}
             </div>
 
-            {/* Show claims check badge for all validation phases */}
-            {guardrailData && (
+            {/* Show claims check badge for all validation phases (only if guardrail is enabled) */}
+            {guardrailData && guardrailData.guardrailEnabled !== false && (
               <div className="px-2 pb-2 relative z-10">
                 <ClaimsCheckBadge
+                  guardrailEnabled={guardrailData.guardrailEnabled}
+                  guardrailName={guardrailData.guardrailName}
                   wasRegenerated={guardrailData.wasRegenerated || false}
                   allowedClaims={guardrailData.claims?.allowedClaims}
-                  validationPhase={guardrailData.validationPhase }
+                  validationPhase={guardrailData.validationPhase}
                 />
               </div>
             )}
